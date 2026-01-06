@@ -7,6 +7,36 @@ from datetime import datetime
 from decimal import Decimal
 
 
+# Brief schemas for nested display (avoid circular imports)
+class PaymentBrief(BaseModel):
+    """Ödeme özet bilgisi"""
+    id: int
+    payment_no: str
+    payment_type: str
+    payment_channel: str
+    currency: str
+    amount: Decimal
+    payment_date: datetime
+    description: Optional[str]
+    
+    class Config:
+        from_attributes = True
+
+
+class TransactionBrief(BaseModel):
+    """İşlem özet bilgisi"""
+    id: int
+    transaction_no: str
+    transaction_type: str
+    currency: str
+    total_amount: Decimal
+    transaction_date: Optional[datetime]
+    status: str
+    
+    class Config:
+        from_attributes = True
+
+
 class ContactAccountBase(BaseModel):
     currency: str
     balance: Decimal = Decimal("0")
@@ -49,6 +79,7 @@ class ContactCreate(ContactBase):
     credit_limit: Decimal = Decimal("0")
     default_currency: str = "TRY"
     notes: Optional[str] = None
+    company_ids: List[int] = []  # Bağlı şirketler
 
 
 class ContactUpdate(BaseModel):
@@ -69,6 +100,18 @@ class ContactUpdate(BaseModel):
     default_currency: Optional[str] = None
     notes: Optional[str] = None
     is_active: Optional[bool] = None
+    company_ids: Optional[List[int]] = None  # Bağlı şirketler
+
+
+class CompanyBrief(BaseModel):
+    """Şirket özet bilgisi"""
+    id: int
+    code: str
+    name: str
+    country: Optional[str]
+    
+    class Config:
+        from_attributes = True
 
 
 class ContactSchema(ContactBase):
@@ -93,6 +136,18 @@ class ContactSchema(ContactBase):
         from_attributes = True
 
 
+class ContactWithCompanies(ContactSchema):
+    """Şirket ilişkileri ile birlikte cari"""
+    companies: List[CompanyBrief] = []
+
+
 class ContactWithAccounts(ContactSchema):
     accounts: List[ContactAccountSchema] = []
+    companies: List[CompanyBrief] = []
+
+
+class ContactDetail(ContactWithAccounts):
+    """Cari detay görünümü - ödemeler ve işlemler dahil"""
+    payments: List[PaymentBrief] = []
+    transactions: List[TransactionBrief] = []
 

@@ -66,6 +66,10 @@ body {
            transition-all duration-200;
   }
   
+  .input-with-icon {
+    @apply input pl-11;
+  }
+  
   .label {
     @apply block text-sm font-medium text-dark-400 mb-1.5;
   }

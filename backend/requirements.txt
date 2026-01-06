@@ -31,3 +31,9 @@ starlette==0.35.1
 python-dotenv==1.0.0
 aiofiles==23.2.1
 
+# HTTP Client (for TCMB API)
+httpx==0.26.0
+
+# Scheduler
+apscheduler==3.10.4
+

@@ -34,6 +34,7 @@ class Company(Base):
     users = relationship("User", back_populates="company")
     accounts = relationship("Account", back_populates="company")
     transactions = relationship("Transaction", back_populates="company")
+    contacts = relationship("Contact", secondary="contact_companies", back_populates="companies")
 
 
 class Warehouse(Base):

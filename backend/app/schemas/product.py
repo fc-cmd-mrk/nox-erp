@@ -7,6 +7,21 @@ from datetime import datetime
 from decimal import Decimal
 
 
+# Brief schemas for nested display
+class TransactionItemBrief(BaseModel):
+    """İşlem kalemi özet bilgisi"""
+    id: int
+    transaction_id: int
+    quantity: Decimal
+    unit_price: Decimal
+    total_amount: Decimal
+    profit: Decimal
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
 class ProductCategoryBase(BaseModel):
     code: str
     name: str
@@ -119,6 +134,11 @@ class ProductSchema(ProductBase):
 class ProductWithCosts(ProductSchema):
     costs: List[ProductCostSchema] = []
     category: Optional[ProductCategorySchema] = None
+
+
+class ProductDetail(ProductWithCosts):
+    """Ürün detay görünümü - işlem kalemleri dahil"""
+    transaction_items: List[TransactionItemBrief] = []
 
 
 class ProductProfitAnalysis(BaseModel):

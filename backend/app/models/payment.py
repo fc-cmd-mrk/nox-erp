@@ -68,6 +68,6 @@ class Payment(Base):
     
     # Relationships
     transaction = relationship("Transaction", back_populates="payments")
-    contact = relationship("Contact")
+    contact = relationship("Contact", back_populates="payments")
     account = relationship("Account", back_populates="payments")
 

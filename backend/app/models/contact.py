@@ -1,7 +1,7 @@
 """
 Contact (Customer/Supplier) Models
 """
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Numeric, Enum
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Numeric, Enum, Table
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
@@ -14,6 +14,18 @@ class ContactType(enum.Enum):
     BOTH = "both"
 
 
+# Many-to-Many: Contact <-> Company
+contact_companies = Table(
+    'contact_companies',
+    Base.metadata,
+    Column('id', Integer, primary_key=True),
+    Column('contact_id', Integer, ForeignKey('contacts.id', ondelete='CASCADE'), nullable=False),
+    Column('company_id', Integer, ForeignKey('companies.id', ondelete='CASCADE'), nullable=False),
+    Column('is_default', Boolean, default=False),
+    Column('created_at', DateTime(timezone=True), server_default=func.now())
+)
+
+
 class Contact(Base):
     """Contacts - Customers and Suppliers (Cariler)"""
     __tablename__ = "contacts"
@@ -24,7 +36,7 @@ class Contact(Base):
     
     contact_type = Column(String(20), default="both")  # customer, supplier, both
     
-    # Company info
+    # Company info (Cari'nin kendi şirket bilgisi)
     company_name = Column(String(200), nullable=True)
     tax_number = Column(String(50), nullable=True)
     tax_office = Column(String(100), nullable=True)
@@ -51,9 +63,11 @@ class Contact(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
+    companies = relationship("Company", secondary=contact_companies, back_populates="contacts")
     accounts = relationship("ContactAccount", back_populates="contact", cascade="all, delete-orphan")
     transactions = relationship("Transaction", back_populates="contact")
     product_costs = relationship("ProductCost", back_populates="supplier")
+    payments = relationship("Payment", back_populates="contact")
 
 
 class ContactAccount(Base):

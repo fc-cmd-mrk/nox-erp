@@ -5,16 +5,49 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.database import get_db
-from app.auth import require_permission
+from app.auth import require_permission, get_current_user
 from app.models.user import User
 from app.models.contact import Contact, ContactAccount
+from app.models.company import Company
 from app.models.audit_log import AuditLog
 from app.schemas.contact import (
     ContactSchema, ContactCreate, ContactUpdate, ContactWithAccounts,
-    ContactAccountSchema, ContactAccountCreate
+    ContactAccountSchema, ContactAccountCreate, ContactWithCompanies, ContactDetail
 )
+from app.services.vkn_query import query_tax_info, validate_vkn, validate_tckn
 
 router = APIRouter(prefix="/contacts", tags=["Contacts"])
+
+
+# ============ VKN/TC SORGULAMA ============
+
+@router.get("/query/tax-info/{tax_number}")
+async def query_tax_information(
+    tax_number: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    VKN veya TC Kimlik Numarası ile firma/kişi bilgilerini sorgular
+    """
+    # Numara doğrulama
+    clean_number = ''.join(filter(str.isdigit, tax_number))
+    
+    if len(clean_number) == 10:
+        if not validate_vkn(clean_number):
+            raise HTTPException(status_code=400, detail="Geçersiz VKN formatı")
+    elif len(clean_number) == 11:
+        if not validate_tckn(clean_number):
+            raise HTTPException(status_code=400, detail="Geçersiz TC Kimlik Numarası formatı")
+    else:
+        raise HTTPException(status_code=400, detail="VKN 10 hane, TCKN 11 hane olmalıdır")
+    
+    result = await query_tax_info(clean_number)
+    
+    if not result.get("success"):
+        # Hata durumunda da dönelim ama success=false ile
+        return result
+    
+    return result
 
 
 @router.get("", response_model=List[ContactWithAccounts])
@@ -68,20 +101,23 @@ async def list_customers(
     return contacts
 
 
-@router.get("/{contact_id}", response_model=ContactWithAccounts)
+@router.get("/{contact_id}", response_model=ContactDetail)
 async def get_contact(
     contact_id: int,
     current_user: User = Depends(require_permission("contacts", "view")),
     db: Session = Depends(get_db)
 ):
-    """Get contact by ID"""
+    """Get contact by ID with payments and transactions"""
     contact = db.query(Contact).filter(Contact.id == contact_id).first()
     if not contact:
         raise HTTPException(status_code=404, detail="Cari bulunamadı")
+    
+    # Eager load payments and transactions if not already loaded
+    # The ORM relationships should handle this
     return contact
 
 
-@router.post("", response_model=ContactSchema)
+@router.post("", response_model=ContactWithCompanies)
 async def create_contact(
     contact_data: ContactCreate,
     req: Request,
@@ -92,10 +128,18 @@ async def create_contact(
     if db.query(Contact).filter(Contact.code == contact_data.code).first():
         raise HTTPException(status_code=400, detail="Bu cari kodu zaten kullanılıyor")
     
-    contact = Contact(**contact_data.model_dump())
+    # company_ids ayrı al
+    company_ids = contact_data.company_ids
+    contact_dict = contact_data.model_dump(exclude={"company_ids"})
+    
+    contact = Contact(**contact_dict)
     db.add(contact)
-    db.commit()
-    db.refresh(contact)
+    db.flush()
+    
+    # Şirket ilişkilerini ekle
+    if company_ids:
+        companies = db.query(Company).filter(Company.id.in_(company_ids)).all()
+        contact.companies = companies
     
     # Create default account with default currency
     account = ContactAccount(
@@ -113,17 +157,18 @@ async def create_contact(
         module="contacts",
         record_id=contact.id,
         record_type="Contact",
-        new_values={"code": contact.code, "name": contact.name},
+        new_values={"code": contact.code, "name": contact.name, "companies": company_ids},
         description=f"Cari oluşturuldu: {contact.name}",
         ip_address=req.client.host if req.client else None
     )
     db.add(log)
     db.commit()
+    db.refresh(contact)
     
     return contact
 
 
-@router.put("/{contact_id}", response_model=ContactSchema)
+@router.put("/{contact_id}", response_model=ContactWithCompanies)
 async def update_contact(
     contact_id: int,
     contact_data: ContactUpdate,
@@ -138,8 +183,18 @@ async def update_contact(
     
     old_values = {"code": contact.code, "name": contact.name}
     
-    for field, value in contact_data.model_dump(exclude_unset=True).items():
+    update_data = contact_data.model_dump(exclude_unset=True)
+    
+    # company_ids ayrı işle
+    company_ids = update_data.pop("company_ids", None)
+    
+    for field, value in update_data.items():
         setattr(contact, field, value)
+    
+    # Şirket ilişkilerini güncelle
+    if company_ids is not None:
+        companies = db.query(Company).filter(Company.id.in_(company_ids)).all()
+        contact.companies = companies
     
     # Log
     log = AuditLog(
@@ -159,6 +214,75 @@ async def update_contact(
     db.refresh(contact)
     
     return contact
+
+
+# ============ COMPANY RELATIONS ============
+
+@router.post("/{contact_id}/companies/{company_id}")
+async def add_company_to_contact(
+    contact_id: int,
+    company_id: int,
+    current_user: User = Depends(require_permission("contacts", "edit")),
+    db: Session = Depends(get_db)
+):
+    """Cariye şirket ekle"""
+    contact = db.query(Contact).filter(Contact.id == contact_id).first()
+    if not contact:
+        raise HTTPException(status_code=404, detail="Cari bulunamadı")
+    
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Şirket bulunamadı")
+    
+    if company in contact.companies:
+        raise HTTPException(status_code=400, detail="Bu şirket zaten ekli")
+    
+    contact.companies.append(company)
+    db.commit()
+    
+    return {"message": f"{company.name} şirketi cariye eklendi"}
+
+
+@router.delete("/{contact_id}/companies/{company_id}")
+async def remove_company_from_contact(
+    contact_id: int,
+    company_id: int,
+    current_user: User = Depends(require_permission("contacts", "edit")),
+    db: Session = Depends(get_db)
+):
+    """Cariden şirket çıkar"""
+    contact = db.query(Contact).filter(Contact.id == contact_id).first()
+    if not contact:
+        raise HTTPException(status_code=404, detail="Cari bulunamadı")
+    
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Şirket bulunamadı")
+    
+    if company not in contact.companies:
+        raise HTTPException(status_code=400, detail="Bu şirket zaten ekli değil")
+    
+    contact.companies.remove(company)
+    db.commit()
+    
+    return {"message": f"{company.name} şirketi cariden çıkarıldı"}
+
+
+@router.get("/{contact_id}/companies")
+async def get_contact_companies(
+    contact_id: int,
+    current_user: User = Depends(require_permission("contacts", "view")),
+    db: Session = Depends(get_db)
+):
+    """Carinin bağlı şirketlerini getir"""
+    contact = db.query(Contact).filter(Contact.id == contact_id).first()
+    if not contact:
+        raise HTTPException(status_code=404, detail="Cari bulunamadı")
+    
+    return [
+        {"id": c.id, "code": c.code, "name": c.name, "country": c.country}
+        for c in contact.companies
+    ]
 
 
 @router.delete("/{contact_id}")

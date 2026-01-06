@@ -55,9 +55,12 @@ class ExchangeRateSchema(BaseModel):
     id: int
     from_currency: str
     to_currency: str
+    buying_rate: Optional[float] = None
+    selling_rate: Optional[float] = None
     rate: float
     rate_date: datetime
     source: Optional[str]
+    is_current: bool = False
     
     class Config:
         from_attributes = True
@@ -67,6 +70,8 @@ class ExchangeRateCreate(BaseModel):
     from_currency: str
     to_currency: str
     rate: float
+    buying_rate: Optional[float] = None
+    selling_rate: Optional[float] = None
     source: Optional[str] = "manual"
 
 

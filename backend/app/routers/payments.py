@@ -266,3 +266,185 @@ async def delete_payment(
     
     return {"message": "Ödeme silindi"}
 
+
+# ============ TRANSFER (VİRMAN) ============
+
+from pydantic import BaseModel
+
+class TransferCreate(BaseModel):
+    """Transfer between accounts"""
+    from_account_id: int
+    to_account_id: int
+    from_amount: float
+    to_amount: Optional[float] = None  # Calculated if not provided
+    exchange_rate: Optional[float] = None
+    description: Optional[str] = None
+    reference_no: Optional[str] = None
+
+
+@router.post("/transfer")
+async def create_transfer(
+    transfer_data: TransferCreate,
+    req: Request,
+    current_user: User = Depends(require_permission("payments", "create")),
+    db: Session = Depends(get_db)
+):
+    """Hesaplar arası virman (transfer). Farklı para birimleri arası dönüşüm destekler."""
+    
+    # Get source and destination accounts
+    from_account = db.query(Account).filter(Account.id == transfer_data.from_account_id).first()
+    to_account = db.query(Account).filter(Account.id == transfer_data.to_account_id).first()
+    
+    if not from_account:
+        raise HTTPException(status_code=404, detail="Kaynak hesap bulunamadı")
+    if not to_account:
+        raise HTTPException(status_code=404, detail="Hedef hesap bulunamadı")
+    
+    if from_account.id == to_account.id:
+        raise HTTPException(status_code=400, detail="Kaynak ve hedef hesap aynı olamaz")
+    
+    # Check sufficient balance
+    if float(from_account.balance) < transfer_data.from_amount:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Yetersiz bakiye. Mevcut: {from_account.balance} {from_account.currency}"
+        )
+    
+    # Calculate to_amount if not provided
+    from_amount = Decimal(str(transfer_data.from_amount))
+    
+    if from_account.currency == to_account.currency:
+        # Same currency - no conversion needed
+        to_amount = from_amount
+        exchange_rate = Decimal("1")
+    else:
+        # Different currencies - conversion needed
+        if transfer_data.to_amount:
+            to_amount = Decimal(str(transfer_data.to_amount))
+            exchange_rate = to_amount / from_amount
+        elif transfer_data.exchange_rate:
+            exchange_rate = Decimal(str(transfer_data.exchange_rate))
+            to_amount = from_amount * exchange_rate
+        else:
+            raise HTTPException(
+                status_code=400, 
+                detail="Farklı para birimleri için 'to_amount' veya 'exchange_rate' gerekli"
+            )
+    
+    # Generate transfer number
+    today = datetime.now().strftime("%Y%m%d")
+    last = db.query(Payment).filter(
+        Payment.payment_no.like(f"TRF{today}%")
+    ).order_by(Payment.id.desc()).first()
+    
+    if last:
+        last_num = int(last.payment_no[-4:])
+        new_num = last_num + 1
+    else:
+        new_num = 1
+    
+    transfer_no = f"TRF{today}{new_num:04d}"
+    
+    # Create outgoing payment (from source account)
+    outgoing_payment = Payment(
+        payment_no=f"{transfer_no}-OUT",
+        payment_type="outgoing",
+        payment_channel="bank_transfer",
+        currency=from_account.currency,
+        amount=from_amount,
+        exchange_rate=exchange_rate,
+        base_amount=from_amount,
+        account_id=from_account.id,
+        reference_no=transfer_data.reference_no or transfer_no,
+        description=f"Virman: {from_account.name} -> {to_account.name}. {transfer_data.description or ''}",
+        payment_date=datetime.utcnow(),
+        status="completed"
+    )
+    db.add(outgoing_payment)
+    
+    # Create incoming payment (to destination account)
+    incoming_payment = Payment(
+        payment_no=f"{transfer_no}-IN",
+        payment_type="incoming",
+        payment_channel="bank_transfer",
+        currency=to_account.currency,
+        amount=to_amount,
+        exchange_rate=Decimal("1") / exchange_rate if exchange_rate != 0 else Decimal("1"),
+        base_amount=to_amount,
+        account_id=to_account.id,
+        reference_no=transfer_data.reference_no or transfer_no,
+        description=f"Virman: {from_account.name} -> {to_account.name}. {transfer_data.description or ''}",
+        payment_date=datetime.utcnow(),
+        status="completed"
+    )
+    db.add(incoming_payment)
+    
+    # Update account balances
+    from_account.balance -= from_amount
+    to_account.balance += to_amount
+    
+    # Create account transactions
+    out_trans = AccountTransaction(
+        account_id=from_account.id,
+        transaction_type="transfer_out",
+        amount=from_amount,
+        balance_after=from_account.balance,
+        reference_type="transfer",
+        reference_id=None,
+        description=f"Virman çıkış: {transfer_no} -> {to_account.name}",
+        transaction_date=datetime.utcnow()
+    )
+    db.add(out_trans)
+    
+    in_trans = AccountTransaction(
+        account_id=to_account.id,
+        transaction_type="transfer_in",
+        amount=to_amount,
+        balance_after=to_account.balance,
+        reference_type="transfer",
+        reference_id=None,
+        description=f"Virman giriş: {transfer_no} <- {from_account.name}",
+        transaction_date=datetime.utcnow()
+    )
+    db.add(in_trans)
+    
+    # Audit log
+    log = AuditLog(
+        user_id=current_user.id,
+        username=current_user.username,
+        action="create",
+        module="payments",
+        record_type="Transfer",
+        new_values={
+            "transfer_no": transfer_no,
+            "from_account": from_account.name,
+            "to_account": to_account.name,
+            "from_amount": float(from_amount),
+            "to_amount": float(to_amount),
+            "exchange_rate": float(exchange_rate)
+        },
+        description=f"Virman: {from_account.name} ({from_amount} {from_account.currency}) -> {to_account.name} ({to_amount} {to_account.currency})",
+        ip_address=req.client.host if req.client else None
+    )
+    db.add(log)
+    
+    db.commit()
+    
+    return {
+        "message": "Virman başarılı",
+        "transfer_no": transfer_no,
+        "from_account": {
+            "name": from_account.name,
+            "currency": from_account.currency,
+            "amount": float(from_amount),
+            "new_balance": float(from_account.balance)
+        },
+        "to_account": {
+            "name": to_account.name,
+            "currency": to_account.currency,
+            "amount": float(to_amount),
+            "new_balance": float(to_account.balance)
+        },
+        "exchange_rate": float(exchange_rate)
+    }
+

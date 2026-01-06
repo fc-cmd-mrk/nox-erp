@@ -76,12 +76,12 @@ export default function Login() {
             <div>
               <label className="label">Kullanıcı Adı</label>
               <div className="relative">
-                <HiOutlineUser className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-500" />
+                <HiOutlineUser className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-500 pointer-events-none z-10" />
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="input pl-11"
+                  className="input !pl-11"
                   placeholder="Kullanıcı adınızı girin"
                   autoComplete="username"
                 />
@@ -91,12 +91,12 @@ export default function Login() {
             <div>
               <label className="label">Şifre</label>
               <div className="relative">
-                <HiOutlineLockClosed className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-500" />
+                <HiOutlineLockClosed className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-500 pointer-events-none z-10" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="input pl-11 pr-11"
+                  className="input !pl-11 !pr-11"
                   placeholder="Şifrenizi girin"
                   autoComplete="current-password"
                 />

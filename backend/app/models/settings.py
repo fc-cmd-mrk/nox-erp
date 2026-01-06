@@ -53,10 +53,15 @@ class ExchangeRate(Base):
     from_currency = Column(String(10), nullable=False, index=True)
     to_currency = Column(String(10), nullable=False, index=True)
     
-    rate = Column(Numeric(18, 8), nullable=False)
+    # TCMB rates
+    buying_rate = Column(Numeric(18, 8), nullable=True)   # Döviz Alış
+    selling_rate = Column(Numeric(18, 8), nullable=True)  # Döviz Satış
+    rate = Column(Numeric(18, 8), nullable=False)         # Kullanılan kur (genellikle buying)
     
     rate_date = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    source = Column(String(50), nullable=True)  # manual, api, etc.
+    source = Column(String(50), nullable=True)  # tcmb, manual, crypto_api
+    
+    is_current = Column(Boolean, default=True)  # Güncel kur mu?
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

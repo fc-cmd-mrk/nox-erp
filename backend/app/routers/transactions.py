@@ -307,3 +307,264 @@ async def delete_transaction(
     
     return {"message": "İşlem silindi"}
 
+
+# ============ İADE / İPTAL ============
+
+@router.post("/{transaction_id}/cancel")
+async def cancel_transaction(
+    transaction_id: int,
+    reason: str = Query(None, description="İptal sebebi"),
+    req: Request = None,
+    current_user: User = Depends(require_permission("transactions", "edit")),
+    db: Session = Depends(get_db)
+):
+    """İşlemi iptal et"""
+    transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+    if not transaction:
+        raise HTTPException(status_code=404, detail="İşlem bulunamadı")
+    
+    if transaction.status == "cancelled":
+        raise HTTPException(status_code=400, detail="Bu işlem zaten iptal edilmiş")
+    
+    old_status = transaction.status
+    transaction.status = "cancelled"
+    
+    if reason:
+        transaction.notes = f"{transaction.notes or ''}\n[İPTAL: {reason}]".strip()
+    
+    # Reverse contact balance
+    if transaction.contact_id:
+        contact_account = db.query(ContactAccount).filter(
+            ContactAccount.contact_id == transaction.contact_id,
+            ContactAccount.currency == transaction.currency
+        ).first()
+        
+        if contact_account:
+            if transaction.transaction_type in ["sale", "purchase_return"]:
+                contact_account.balance -= transaction.total_amount
+            else:
+                contact_account.balance += transaction.total_amount
+    
+    # Log
+    log = AuditLog(
+        user_id=current_user.id,
+        username=current_user.username,
+        action="cancel",
+        module="transactions",
+        record_id=transaction.id,
+        record_type="Transaction",
+        old_values={"status": old_status},
+        new_values={"status": "cancelled", "reason": reason},
+        description=f"İşlem iptal edildi: {transaction.transaction_no}",
+        ip_address=req.client.host if req.client else None
+    )
+    db.add(log)
+    db.commit()
+    
+    return {"message": "İşlem iptal edildi", "transaction_no": transaction.transaction_no}
+
+
+@router.post("/{transaction_id}/return", response_model=TransactionSchema)
+async def create_return(
+    transaction_id: int,
+    reason: str = Query(None, description="İade sebebi"),
+    full_return: bool = Query(True, description="Tam iade mi?"),
+    req: Request = None,
+    current_user: User = Depends(require_permission("transactions", "create")),
+    db: Session = Depends(get_db)
+):
+    """İşlem için iade oluştur"""
+    original = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+    if not original:
+        raise HTTPException(status_code=404, detail="Orijinal işlem bulunamadı")
+    
+    if original.status == "cancelled":
+        raise HTTPException(status_code=400, detail="İptal edilmiş işlem için iade yapılamaz")
+    
+    # Determine return type
+    if original.transaction_type == "sale":
+        return_type = "sale_return"
+    elif original.transaction_type == "purchase":
+        return_type = "purchase_return"
+    else:
+        raise HTTPException(status_code=400, detail="Bu işlem tipi için iade yapılamaz")
+    
+    # Generate return transaction number
+    return_no = generate_transaction_no(db, return_type)
+    
+    # Create return transaction
+    return_transaction = Transaction(
+        transaction_no=return_no,
+        external_id=f"RET-{original.transaction_no}",
+        transaction_type=return_type,
+        company_id=original.company_id,
+        contact_id=original.contact_id,
+        transaction_date=datetime.now(),
+        currency=original.currency,
+        exchange_rate=original.exchange_rate,
+        subtotal=original.subtotal,
+        tax_amount=original.tax_amount,
+        discount_amount=original.discount_amount,
+        total_amount=original.total_amount,
+        status="completed",
+        notes=f"İade - Orijinal: {original.transaction_no}" + (f"\nSebep: {reason}" if reason else "")
+    )
+    db.add(return_transaction)
+    db.flush()
+    
+    # Copy items
+    for item in original.items:
+        return_item = TransactionItem(
+            transaction_id=return_transaction.id,
+            product_id=item.product_id,
+            warehouse_id=item.warehouse_id,
+            sub_warehouse_id=item.sub_warehouse_id,
+            description=f"İADE: {item.description or ''}",
+            quantity=item.quantity,
+            unit_price=item.unit_price,
+            cost_price=item.cost_price,
+            discount_percent=item.discount_percent,
+            discount_amount=item.discount_amount,
+            tax_percent=item.tax_percent,
+            tax_amount=item.tax_amount,
+            total_amount=item.total_amount,
+            profit=-item.profit,  # Negative profit for returns
+            profit_margin=-item.profit_margin
+        )
+        db.add(return_item)
+    
+    # Update contact balance
+    if return_transaction.contact_id:
+        contact_account = db.query(ContactAccount).filter(
+            ContactAccount.contact_id == return_transaction.contact_id,
+            ContactAccount.currency == return_transaction.currency
+        ).first()
+        
+        if contact_account:
+            if return_type == "sale_return":
+                contact_account.balance -= return_transaction.total_amount  # We owe them back
+            else:  # purchase_return
+                contact_account.balance += return_transaction.total_amount  # They owe us back
+    
+    # Log
+    log = AuditLog(
+        user_id=current_user.id,
+        username=current_user.username,
+        action="create",
+        module="transactions",
+        record_id=return_transaction.id,
+        record_type="Transaction",
+        new_values={
+            "transaction_no": return_no, 
+            "original": original.transaction_no,
+            "type": return_type
+        },
+        description=f"İade oluşturuldu: {return_no} (Orijinal: {original.transaction_no})",
+        ip_address=req.client.host if req.client else None
+    )
+    db.add(log)
+    db.commit()
+    db.refresh(return_transaction)
+    
+    return return_transaction
+
+
+# ============ SUMMARY / REPORTS ============
+
+@router.get("/summary/today")
+async def get_today_summary(
+    company_id: Optional[int] = None,
+    current_user: User = Depends(require_permission("transactions", "view")),
+    db: Session = Depends(get_db)
+):
+    """Bugünün özeti"""
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    tomorrow = today + timedelta(days=1)
+    
+    query = db.query(Transaction).filter(
+        Transaction.transaction_date >= today,
+        Transaction.transaction_date < tomorrow,
+        Transaction.status != "cancelled"
+    )
+    
+    if company_id:
+        query = query.filter(Transaction.company_id == company_id)
+    
+    transactions = query.all()
+    
+    sales_total = sum(t.total_amount for t in transactions if t.transaction_type == "sale")
+    purchase_total = sum(t.total_amount for t in transactions if t.transaction_type == "purchase")
+    
+    # Calculate profit from items
+    profit = Decimal("0")
+    for t in transactions:
+        if t.transaction_type == "sale":
+            for item in t.items:
+                profit += item.profit or Decimal("0")
+        elif t.transaction_type == "sale_return":
+            for item in t.items:
+                profit += item.profit or Decimal("0")  # Already negative
+    
+    return {
+        "date": today.strftime("%Y-%m-%d"),
+        "sales_count": len([t for t in transactions if t.transaction_type == "sale"]),
+        "sales_total": float(sales_total),
+        "purchase_count": len([t for t in transactions if t.transaction_type == "purchase"]),
+        "purchase_total": float(purchase_total),
+        "profit": float(profit)
+    }
+
+
+@router.get("/summary/monthly")
+async def get_monthly_summary(
+    year: int = None,
+    month: int = None,
+    company_id: Optional[int] = None,
+    current_user: User = Depends(require_permission("transactions", "view")),
+    db: Session = Depends(get_db)
+):
+    """Aylık özet"""
+    now = datetime.now()
+    year = year or now.year
+    month = month or now.month
+    
+    start_date = datetime(year, month, 1)
+    if month == 12:
+        end_date = datetime(year + 1, 1, 1)
+    else:
+        end_date = datetime(year, month + 1, 1)
+    
+    query = db.query(Transaction).filter(
+        Transaction.transaction_date >= start_date,
+        Transaction.transaction_date < end_date,
+        Transaction.status != "cancelled"
+    )
+    
+    if company_id:
+        query = query.filter(Transaction.company_id == company_id)
+    
+    transactions = query.all()
+    
+    sales_total = sum(t.total_amount for t in transactions if t.transaction_type == "sale")
+    purchase_total = sum(t.total_amount for t in transactions if t.transaction_type == "purchase")
+    return_total = sum(t.total_amount for t in transactions if t.transaction_type in ["sale_return", "purchase_return"])
+    
+    # Calculate profit
+    profit = Decimal("0")
+    for t in transactions:
+        for item in t.items:
+            if t.transaction_type in ["sale", "sale_return"]:
+                profit += item.profit or Decimal("0")
+    
+    return {
+        "year": year,
+        "month": month,
+        "sales_count": len([t for t in transactions if t.transaction_type == "sale"]),
+        "sales_total": float(sales_total),
+        "purchase_count": len([t for t in transactions if t.transaction_type == "purchase"]),
+        "purchase_total": float(purchase_total),
+        "return_count": len([t for t in transactions if t.transaction_type in ["sale_return", "purchase_return"]]),
+        "return_total": float(return_total),
+        "profit": float(profit)
+    }
+

@@ -347,24 +347,73 @@ async def export_data(
         "payments": Payment
     }
     
+    # Column headers for each model (Turkish)
+    column_headers = {
+        "contacts": {
+            "id": "ID", "code": "Kod", "name": "Ad", "contact_type": "Tip",
+            "company_name": "Firma Adı", "tax_number": "Vergi No", "tax_office": "Vergi Dairesi",
+            "email": "Email", "phone": "Telefon", "mobile": "Mobil", "address": "Adres",
+            "city": "Şehir", "country": "Ülke", "payment_term_days": "Vade (Gün)",
+            "credit_limit": "Kredi Limiti", "default_currency": "Para Birimi",
+            "notes": "Notlar", "is_active": "Aktif", "created_at": "Oluşturma Tarihi", "updated_at": "Güncelleme Tarihi"
+        },
+        "products": {
+            "id": "ID", "model_code": "Model Kodu", "name": "Ürün Adı", "barcode": "Barkod",
+            "category": "Kategori", "brand": "Marka", "purchase_price": "Alış Fiyatı",
+            "sale_price": "Satış Fiyatı", "stock_quantity": "Stok Miktarı", "unit": "Birim",
+            "is_active": "Aktif", "created_at": "Oluşturma Tarihi", "updated_at": "Güncelleme Tarihi"
+        },
+        "transactions": {
+            "id": "ID", "transaction_no": "İşlem No", "external_id": "Harici ID",
+            "transaction_type": "İşlem Tipi", "company_id": "Şirket ID", "contact_id": "Cari ID",
+            "transaction_date": "İşlem Tarihi", "due_date": "Vade Tarihi",
+            "currency": "Para Birimi", "subtotal": "Ara Toplam", "tax_amount": "KDV Tutarı",
+            "discount_amount": "İndirim", "total_amount": "Toplam Tutar",
+            "paid_amount": "Ödenen", "is_paid": "Ödendi", "exchange_rate": "Kur",
+            "notes": "Notlar", "status": "Durum", "created_at": "Oluşturma Tarihi"
+        },
+        "payments": {
+            "id": "ID", "payment_no": "Ödeme No", "external_id": "Harici ID",
+            "transaction_id": "İşlem ID", "contact_id": "Cari ID", "account_id": "Hesap ID",
+            "payment_type": "Ödeme Tipi", "payment_channel": "Ödeme Kanalı",
+            "currency": "Para Birimi", "amount": "Tutar", "exchange_rate": "Kur",
+            "base_amount": "TRY Tutarı", "due_date": "Vade Tarihi", "is_advance": "Avans",
+            "status": "Durum", "reference_no": "Referans No", "description": "Açıklama",
+            "payment_date": "Ödeme Tarihi", "created_at": "Oluşturma Tarihi"
+        }
+    }
+    
     if model not in model_map:
         raise HTTPException(status_code=400, detail="Geçersiz model")
     
     # Get data
     records = db.query(model_map[model]).all()
     
+    # Get column names from model
+    model_columns = [column.name for column in model_map[model].__table__.columns]
+    
     # Convert to DataFrame
     data = []
     for record in records:
         row = {}
-        for column in record.__table__.columns:
-            value = getattr(record, column.name)
+        for column in model_columns:
+            value = getattr(record, column, None)
             if isinstance(value, datetime):
                 value = value.isoformat()
-            row[column.name] = value
+            row[column] = value
         data.append(row)
     
-    df = pd.DataFrame(data)
+    # Create DataFrame with columns even if no data
+    if data:
+        df = pd.DataFrame(data)
+    else:
+        # Empty DataFrame with columns
+        df = pd.DataFrame(columns=model_columns)
+    
+    # Rename columns to Turkish if headers available
+    if model in column_headers:
+        rename_map = {k: v for k, v in column_headers[model].items() if k in df.columns}
+        df = df.rename(columns=rename_map)
     
     # Create file
     output = io.BytesIO()
