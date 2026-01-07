@@ -280,10 +280,10 @@ export default function Transactions() {
           </select>
           <button 
             onClick={() => setShowCreateModal(true)} 
-            className="btn-primary h-11 px-5"
+            className="btn-primary h-11 px-5 whitespace-nowrap"
           >
             <HiOutlinePlus className="w-5 h-5" />
-            Yeni İşlem
+            <span>Yeni İşlem</span>
           </button>
         </div>
       </div>
