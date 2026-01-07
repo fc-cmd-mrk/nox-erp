@@ -12,7 +12,7 @@ from app.auth import require_permission
 from app.models.user import User
 from app.models.transaction import Transaction, TransactionItem
 from app.models.payment import Payment
-from app.models.product import Product
+from app.models.product import Product, ProductGroup
 from app.models.contact import Contact, ContactAccount
 from app.models.account import Account
 from app.models.company import Company
@@ -403,12 +403,12 @@ async def profit_loss_report(
     end_date: Optional[datetime] = None,
     company_id: Optional[int] = None,
     currency: Optional[str] = None,
-    group_by: str = Query("product", description="product, contact, company, date"),
+    group_by: str = Query("product", description="product, product_group, contact, company, date"),
     current_user: User = Depends(require_permission("reports", "view")),
     db: Session = Depends(get_db)
 ):
     """
-    Kar/Zarar Analizi - Şirket/Cari/Ürün bazlı, döviz cinsine göre
+    Kar/Zarar Analizi - Şirket/Cari/Ürün/Stok Grubu bazlı, döviz cinsine göre
     """
     if not start_date:
         start_date = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -501,13 +501,32 @@ async def profit_loss_report(
                         grouped[key] = {
                             "id": key,
                             "name": product.name if product else "Bilinmeyen",
-                            "code": product.model_code if product else "-",
+                            "group_name": product.group.name if product and product.group else None,
                             "revenue": 0, "cost": 0, "profit": 0, "quantity": 0
                         }
                     grouped[key]["revenue"] += float(item.total_amount) * rate_to_try
                     grouped[key]["cost"] += float(item.cost_price * item.quantity) * rate_to_try
                     grouped[key]["profit"] += float(item.profit or 0) * rate_to_try
                     grouped[key]["quantity"] += float(item.quantity)
+        
+        elif group_by == "product_group":
+            for item in trans.items:
+                if item.product_id:
+                    product = db.query(Product).filter(Product.id == item.product_id).first()
+                    if product:
+                        key = product.group_id or 0  # 0 for products without group
+                        if key not in grouped:
+                            group = product.group
+                            grouped[key] = {
+                                "id": key,
+                                "code": group.code if group else "-",
+                                "name": group.name if group else "Grupsuz Ürünler",
+                                "revenue": 0, "cost": 0, "profit": 0, "quantity": 0, "product_count": 0
+                            }
+                        grouped[key]["revenue"] += float(item.total_amount) * rate_to_try
+                        grouped[key]["cost"] += float(item.cost_price * item.quantity) * rate_to_try
+                        grouped[key]["profit"] += float(item.profit or 0) * rate_to_try
+                        grouped[key]["quantity"] += float(item.quantity)
         
         elif group_by == "contact":
             if trans.contact_id:

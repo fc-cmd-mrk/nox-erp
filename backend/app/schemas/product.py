@@ -22,6 +22,39 @@ class TransactionItemBrief(BaseModel):
         from_attributes = True
 
 
+# ============ STOK GRUBU (ProductGroup) ============
+class ProductGroupBase(BaseModel):
+    code: str
+    name: str
+    description: Optional[str] = None
+
+
+class ProductGroupCreate(ProductGroupBase):
+    pass
+
+
+class ProductGroupUpdate(BaseModel):
+    code: Optional[str] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class ProductGroupSchema(ProductGroupBase):
+    id: int
+    is_active: bool
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+class ProductGroupWithProducts(ProductGroupSchema):
+    """Stok grubu ve ürünleri"""
+    products: List["ProductSchema"] = []
+
+
+# ============ KATEGORİ ============
 class ProductCategoryBase(BaseModel):
     code: str
     name: str
@@ -86,11 +119,11 @@ class ProductCostSchema(ProductCostBase):
 
 
 class ProductBase(BaseModel):
-    model_code: str
     name: str
 
 
 class ProductCreate(ProductBase):
+    group_id: Optional[int] = None  # Stok Grubu
     category_id: Optional[int] = None
     default_sale_price: Decimal = Decimal("0")
     default_currency: str = "TRY"
@@ -101,8 +134,8 @@ class ProductCreate(ProductBase):
 
 
 class ProductUpdate(BaseModel):
-    model_code: Optional[str] = None
     name: Optional[str] = None
+    group_id: Optional[int] = None  # Stok Grubu
     category_id: Optional[int] = None
     default_sale_price: Optional[Decimal] = None
     default_currency: Optional[str] = None
@@ -116,6 +149,7 @@ class ProductUpdate(BaseModel):
 
 class ProductSchema(ProductBase):
     id: int
+    group_id: Optional[int]
     category_id: Optional[int]
     default_sale_price: Decimal
     default_currency: str
@@ -133,6 +167,7 @@ class ProductSchema(ProductBase):
 
 class ProductWithCosts(ProductSchema):
     costs: List[ProductCostSchema] = []
+    group: Optional[ProductGroupSchema] = None
     category: Optional[ProductCategorySchema] = None
 
 
@@ -143,11 +178,15 @@ class ProductDetail(ProductWithCosts):
 
 class ProductProfitAnalysis(BaseModel):
     product_id: int
-    model_code: str
     name: str
+    group_name: Optional[str] = None
     total_sales: int
     total_revenue: Decimal
     total_cost: Decimal
     total_profit: Decimal
     profit_margin: Decimal
+
+
+# Circular reference resolution
+ProductGroupWithProducts.model_rebuild()
 

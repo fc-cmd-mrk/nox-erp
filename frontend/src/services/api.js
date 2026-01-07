@@ -89,7 +89,13 @@ export const productsAPI = {
   delete: (id) => api.delete(`/products/${id}`),
   categories: () => api.get('/products/categories'),
   statistics: (params) => api.get('/products/statistics', { params }),
-  warehouses: (params) => api.get('/products/warehouses/list', { params })
+  warehouses: (params) => api.get('/products/warehouses/list', { params }),
+  // Stok Grupları
+  groups: () => api.get('/products/groups'),
+  getGroup: (id) => api.get(`/products/groups/${id}`),
+  createGroup: (data) => api.post('/products/groups', data),
+  updateGroup: (id, data) => api.put(`/products/groups/${id}`, data),
+  deleteGroup: (id) => api.delete(`/products/groups/${id}`)
 }
 
 export const transactionsAPI = {

@@ -9,7 +9,7 @@ from datetime import date
 from app.database import get_db
 from app.auth import require_permission
 from app.models.user import User
-from app.models.product import Product, ProductCost, ProductCategory
+from app.models.product import Product, ProductCost, ProductCategory, ProductGroup
 from app.models.transaction import Transaction, TransactionItem
 from app.models.company import Company, Warehouse
 from app.models.settings import ExchangeRate
@@ -17,10 +17,94 @@ from app.models.audit_log import AuditLog
 from app.schemas.product import (
     ProductSchema, ProductCreate, ProductUpdate, ProductWithCosts, ProductDetail,
     ProductCostSchema, ProductCostCreate, ProductCostUpdate,
-    ProductCategorySchema, ProductCategoryCreate, ProductCategoryUpdate
+    ProductCategorySchema, ProductCategoryCreate, ProductCategoryUpdate,
+    ProductGroupSchema, ProductGroupCreate, ProductGroupUpdate, ProductGroupWithProducts
 )
 
 router = APIRouter(prefix="/products", tags=["Products"])
+
+
+# ============ STOK GRUPLARI (ProductGroup) ============
+
+@router.get("/groups", response_model=List[ProductGroupSchema])
+async def list_groups(
+    current_user: User = Depends(require_permission("products", "view")),
+    db: Session = Depends(get_db)
+):
+    """List all product groups (Stok Grupları)"""
+    groups = db.query(ProductGroup).filter(ProductGroup.is_active == True).all()
+    return groups
+
+
+@router.get("/groups/{group_id}", response_model=ProductGroupWithProducts)
+async def get_group(
+    group_id: int,
+    current_user: User = Depends(require_permission("products", "view")),
+    db: Session = Depends(get_db)
+):
+    """Get product group with its products"""
+    group = db.query(ProductGroup).filter(ProductGroup.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Stok grubu bulunamadı")
+    return group
+
+
+@router.post("/groups", response_model=ProductGroupSchema)
+async def create_group(
+    group_data: ProductGroupCreate,
+    current_user: User = Depends(require_permission("products", "create")),
+    db: Session = Depends(get_db)
+):
+    """Create product group (Stok Grubu)"""
+    if db.query(ProductGroup).filter(ProductGroup.code == group_data.code).first():
+        raise HTTPException(status_code=400, detail="Bu kod zaten kullanılıyor")
+    
+    group = ProductGroup(**group_data.model_dump())
+    db.add(group)
+    db.commit()
+    db.refresh(group)
+    return group
+
+
+@router.put("/groups/{group_id}", response_model=ProductGroupSchema)
+async def update_group(
+    group_id: int,
+    group_data: ProductGroupUpdate,
+    current_user: User = Depends(require_permission("products", "edit")),
+    db: Session = Depends(get_db)
+):
+    """Update product group"""
+    group = db.query(ProductGroup).filter(ProductGroup.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Stok grubu bulunamadı")
+    
+    for field, value in group_data.model_dump(exclude_unset=True).items():
+        setattr(group, field, value)
+    
+    db.commit()
+    db.refresh(group)
+    return group
+
+
+@router.delete("/groups/{group_id}")
+async def delete_group(
+    group_id: int,
+    current_user: User = Depends(require_permission("products", "delete")),
+    db: Session = Depends(get_db)
+):
+    """Delete product group (soft delete)"""
+    group = db.query(ProductGroup).filter(ProductGroup.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Stok grubu bulunamadı")
+    
+    # Check if group has products
+    product_count = db.query(Product).filter(Product.group_id == group_id).count()
+    if product_count > 0:
+        raise HTTPException(status_code=400, detail=f"Bu grupta {product_count} ürün var. Önce ürünleri taşıyın.")
+    
+    group.is_active = False
+    db.commit()
+    return {"message": "Stok grubu silindi"}
 
 
 # ============ CATEGORIES ============
@@ -76,19 +160,20 @@ async def list_products(
     skip: int = 0,
     limit: int = 100,
     search: Optional[str] = None,
+    group_id: Optional[int] = None,
     category_id: Optional[int] = None,
     current_user: User = Depends(require_permission("products", "view")),
     db: Session = Depends(get_db)
 ):
     """List all products"""
-    query = db.query(Product)
+    query = db.query(Product).options(joinedload(Product.group))
     
     if search:
         search_term = f"%{search}%"
-        query = query.filter(
-            (Product.name.ilike(search_term)) | 
-            (Product.model_code.ilike(search_term))
-        )
+        query = query.filter(Product.name.ilike(search_term))
+    
+    if group_id:
+        query = query.filter(Product.group_id == group_id)
     
     if category_id:
         query = query.filter(Product.category_id == category_id)
@@ -101,13 +186,17 @@ async def list_products(
 async def get_products_with_statistics(
     company_id: Optional[int] = None,
     warehouse_id: Optional[int] = None,
+    group_id: Optional[int] = None,
     current_user: User = Depends(require_permission("products", "view")),
     db: Session = Depends(get_db)
 ):
     """Get all products with statistics (last purchase price, last sale price, stock, profit in USD)"""
     from decimal import Decimal
     
-    products = db.query(Product).all()
+    query = db.query(Product).options(joinedload(Product.group))
+    if group_id:
+        query = query.filter(Product.group_id == group_id)
+    products = query.all()
     
     # Get today's exchange rates for USD conversion
     today = date.today()
@@ -183,8 +272,9 @@ async def get_products_with_statistics(
         
         result.append({
             'id': product.id,
-            'model_code': product.model_code,
             'name': product.name,
+            'group_id': product.group_id,
+            'group_name': product.group.name if product.group else None,
             'description': product.description,
             'default_currency': product.default_currency,
             'default_sale_price': float(product.default_sale_price or 0),
@@ -241,19 +331,6 @@ async def get_product(
     return product
 
 
-@router.get("/code/{model_code}", response_model=ProductWithCosts)
-async def get_product_by_code(
-    model_code: str,
-    current_user: User = Depends(require_permission("products", "view")),
-    db: Session = Depends(get_db)
-):
-    """Get product by model code"""
-    product = db.query(Product).filter(Product.model_code == model_code).first()
-    if not product:
-        raise HTTPException(status_code=404, detail="Ürün bulunamadı")
-    return product
-
-
 @router.post("", response_model=ProductSchema)
 async def create_product(
     product_data: ProductCreate,
@@ -262,8 +339,13 @@ async def create_product(
     db: Session = Depends(get_db)
 ):
     """Create new product"""
-    if db.query(Product).filter(Product.model_code == product_data.model_code).first():
-        raise HTTPException(status_code=400, detail="Bu model kodu zaten kullanılıyor")
+    # Check if product name already exists in same group
+    existing = db.query(Product).filter(
+        Product.name == product_data.name,
+        Product.group_id == product_data.group_id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Bu isimde bir ürün aynı grupta zaten var")
     
     product = Product(**product_data.model_dump())
     db.add(product)
@@ -278,7 +360,7 @@ async def create_product(
         module="products",
         record_id=product.id,
         record_type="Product",
-        new_values={"model_code": product.model_code, "name": product.name},
+        new_values={"name": product.name, "group_id": product.group_id},
         description=f"Ürün oluşturuldu: {product.name}",
         ip_address=req.client.host if req.client else None
     )
@@ -301,7 +383,7 @@ async def update_product(
     if not product:
         raise HTTPException(status_code=404, detail="Ürün bulunamadı")
     
-    old_values = {"model_code": product.model_code, "name": product.name}
+    old_values = {"name": product.name, "group_id": product.group_id}
     
     for field, value in product_data.model_dump(exclude_unset=True).items():
         setattr(product, field, value)
@@ -315,7 +397,7 @@ async def update_product(
         record_id=product.id,
         record_type="Product",
         old_values=old_values,
-        new_values={"model_code": product.model_code, "name": product.name},
+        new_values={"name": product.name, "group_id": product.group_id},
         description=f"Ürün güncellendi: {product.name}",
         ip_address=req.client.host if req.client else None
     )

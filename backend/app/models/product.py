@@ -7,6 +7,23 @@ from sqlalchemy.sql import func
 from app.database import Base
 
 
+class ProductGroup(Base):
+    """Stok Grupları - Ürünleri gruplandırmak için"""
+    __tablename__ = "product_groups"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(50), unique=True, nullable=False)
+    name = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    products = relationship("Product", back_populates="group")
+
+
 class ProductCategory(Base):
     """Product categories"""
     __tablename__ = "product_categories"
@@ -30,9 +47,10 @@ class Product(Base):
     __tablename__ = "products"
     
     id = Column(Integer, primary_key=True, index=True)
-    model_code = Column(String(50), unique=True, nullable=False, index=True)  # ep398451470
     name = Column(String(200), nullable=False, index=True)
     
+    # Stok Grubu (zorunlu)
+    group_id = Column(Integer, ForeignKey("product_groups.id"), nullable=True)
     category_id = Column(Integer, ForeignKey("product_categories.id"), nullable=True)
     
     # Pricing
@@ -53,6 +71,7 @@ class Product(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
+    group = relationship("ProductGroup", back_populates="products")
     category = relationship("ProductCategory", back_populates="products")
     costs = relationship("ProductCost", back_populates="product", cascade="all, delete-orphan")
     transaction_items = relationship("TransactionItem", back_populates="product")

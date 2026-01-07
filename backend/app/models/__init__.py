@@ -4,7 +4,7 @@ NOX ERP Database Models
 from app.models.user import User, Role, Permission, RolePermission
 from app.models.company import Company, Warehouse, SubWarehouse
 from app.models.contact import Contact, ContactAccount, ContactType
-from app.models.product import Product, ProductCost, ProductCategory
+from app.models.product import Product, ProductCost, ProductCategory, ProductGroup
 from app.models.transaction import Transaction, TransactionItem, TransactionType
 from app.models.account import Account, AccountType, AccountTransaction
 from app.models.payment import Payment, PaymentChannel, PaymentStatus

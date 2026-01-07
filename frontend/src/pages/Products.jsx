@@ -22,24 +22,30 @@ import {
 export default function Products() {
   const [products, setProducts] = useState([])
   const [productStats, setProductStats] = useState([])
+  const [groups, setGroups] = useState([])
   const [companies, setCompanies] = useState([])
   const [warehouses, setWarehouses] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(false)
+  const [showGroupModal, setShowGroupModal] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [editingProduct, setEditingProduct] = useState(null)
   
   // Filters
   const [filter, setFilter] = useState('')
+  const [groupFilter, setGroupFilter] = useState('')
   const [companyFilter, setCompanyFilter] = useState('')
   const [warehouseFilter, setWarehouseFilter] = useState('')
   const [showFilters, setShowFilters] = useState(false)
   
+  // Group form
+  const [groupForm, setGroupForm] = useState({ code: '', name: '', description: '' })
+  
   const [formData, setFormData] = useState({
-    model_code: '',
     name: '',
+    group_id: '',
     default_sale_price: '',
     default_currency: 'TRY',
     description: ''
@@ -50,6 +56,7 @@ export default function Products() {
     try {
       const params = {}
       if (filter) params.search = filter
+      if (groupFilter) params.group_id = groupFilter
       const response = await productsAPI.list(params)
       setProducts(response.data)
     } catch (error) {
@@ -58,9 +65,19 @@ export default function Products() {
     setLoading(false)
   }
   
+  const fetchGroups = async () => {
+    try {
+      const response = await productsAPI.groups()
+      setGroups(response.data)
+    } catch (error) {
+      console.error('Stok grupları yüklenemedi', error)
+    }
+  }
+  
   const fetchProductStats = async () => {
     try {
       const params = {}
+      if (groupFilter) params.group_id = groupFilter
       if (companyFilter) params.company_id = companyFilter
       if (warehouseFilter) params.warehouse_id = warehouseFilter
       const response = await productsAPI.statistics(params)
@@ -92,8 +109,13 @@ export default function Products() {
   
   useEffect(() => {
     fetchProducts()
+    fetchProductStats()
+  }, [filter, groupFilter])
+  
+  useEffect(() => {
+    fetchGroups()
     fetchCompanies()
-  }, [filter])
+  }, [])
   
   useEffect(() => {
     fetchProductStats()
@@ -103,7 +125,11 @@ export default function Products() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
-      const data = { ...formData, default_sale_price: parseFloat(formData.default_sale_price) || 0 }
+      const data = { 
+        ...formData, 
+        default_sale_price: parseFloat(formData.default_sale_price) || 0,
+        group_id: formData.group_id ? parseInt(formData.group_id) : null
+      }
       if (editingProduct) {
         await productsAPI.update(editingProduct.id, data)
         toast.success('Ürün güncellendi')
@@ -123,8 +149,8 @@ export default function Products() {
   const handleEdit = (product) => {
     setEditingProduct(product)
     setFormData({
-      model_code: product.model_code,
       name: product.name,
+      group_id: product.group_id?.toString() || '',
       default_sale_price: product.default_sale_price?.toString() || '',
       default_currency: product.default_currency,
       description: product.description || ''
@@ -145,11 +171,24 @@ export default function Products() {
     }
   }
   
+  const handleCreateGroup = async (e) => {
+    e.preventDefault()
+    try {
+      await productsAPI.createGroup(groupForm)
+      toast.success('Stok grubu oluşturuldu')
+      setShowGroupModal(false)
+      setGroupForm({ code: '', name: '', description: '' })
+      fetchGroups()
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Grup oluşturulamadı')
+    }
+  }
+  
   const resetForm = () => {
     setEditingProduct(null)
     setFormData({
-      model_code: '',
       name: '',
+      group_id: '',
       default_sale_price: '',
       default_currency: 'TRY',
       description: ''
@@ -254,10 +293,22 @@ export default function Products() {
               type="text"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              placeholder="Ürün ara (ad veya model kodu)..."
+              placeholder="Ürün ara..."
               className="input !pl-11"
             />
           </div>
+          <select
+            value={groupFilter}
+            onChange={(e) => setGroupFilter(e.target.value)}
+            className="input max-w-xs"
+          >
+            <option value="">Tüm Stok Grupları</option>
+            {groups.map(group => (
+              <option key={group.id} value={group.id}>
+                {group.name}
+              </option>
+            ))}
+          </select>
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`btn-secondary ${showFilters ? 'bg-nox-900/50 border-nox-500' : ''}`}
@@ -269,7 +320,31 @@ export default function Products() {
         
         {showFilters && (
           <div className="card !p-4 animate-fade-in">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="label">Stok Grubu</label>
+                <div className="flex gap-2">
+                  <select
+                    value={groupFilter}
+                    onChange={(e) => setGroupFilter(e.target.value)}
+                    className="input flex-1"
+                  >
+                    <option value="">Tüm Gruplar</option>
+                    {groups.map(group => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => setShowGroupModal(true)}
+                    className="btn-secondary px-3"
+                    title="Yeni Grup"
+                  >
+                    <HiOutlinePlus className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
               <div>
                 <label className="label">Şirket</label>
                 <select
@@ -307,6 +382,7 @@ export default function Products() {
               <div className="flex items-end">
                 <button
                   onClick={() => {
+                    setGroupFilter('')
                     setCompanyFilter('')
                     setWarehouseFilter('')
                   }}
@@ -330,7 +406,7 @@ export default function Products() {
           <table className="table">
             <thead>
               <tr>
-                <th>Model Kodu</th>
+                <th>Stok Grubu</th>
                 <th>Ürün Adı</th>
                 <th>Son Alış Fiyatı</th>
                 <th>Son Satış Fiyatı</th>
@@ -346,7 +422,15 @@ export default function Products() {
                   className="cursor-pointer hover:bg-dark-800/50"
                   onClick={() => fetchProductDetail(product.id)}
                 >
-                  <td className="font-mono text-nox-400">{product.model_code}</td>
+                  <td>
+                    {product.group_name ? (
+                      <span className="px-2 py-1 bg-nox-900/30 text-nox-400 rounded-lg text-sm">
+                        {product.group_name}
+                      </span>
+                    ) : (
+                      <span className="text-dark-500">-</span>
+                    )}
+                  </td>
                   <td>
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg bg-dark-800 flex items-center justify-center">
@@ -449,16 +533,30 @@ export default function Products() {
             
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="label">Model Kodu *</label>
-                <input
-                  type="text"
-                  value={formData.model_code}
-                  onChange={(e) => setFormData({ ...formData, model_code: e.target.value })}
-                  className="input font-mono"
-                  placeholder="Örn: EP123456789"
-                  required
-                />
-                <p className="text-xs text-dark-500 mt-1">Ürünü tanımlayan benzersiz kod</p>
+                <label className="label">Stok Grubu</label>
+                <div className="flex gap-2">
+                  <select
+                    value={formData.group_id}
+                    onChange={(e) => setFormData({ ...formData, group_id: e.target.value })}
+                    className="input flex-1"
+                  >
+                    <option value="">Grup Seçin</option>
+                    {groups.map(group => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setShowGroupModal(true)}
+                    className="btn-secondary px-3"
+                    title="Yeni Grup"
+                  >
+                    <HiOutlinePlus className="w-4 h-4" />
+                  </button>
+                </div>
+                <p className="text-xs text-dark-500 mt-1">Ürünün ait olduğu stok grubu</p>
               </div>
               
               <div>
@@ -543,7 +641,11 @@ export default function Products() {
                 </div>
                 <div>
                   <h2 className="text-xl font-semibold text-dark-50">{selectedProduct.name}</h2>
-                  <p className="text-sm text-dark-400 font-mono">{selectedProduct.model_code}</p>
+                  {selectedProduct.group && (
+                    <span className="px-2 py-1 bg-nox-900/30 text-nox-400 rounded-lg text-sm">
+                      {selectedProduct.group.name}
+                    </span>
+                  )}
                 </div>
               </div>
               <button 
@@ -675,6 +777,68 @@ export default function Products() {
                 Kapat
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Group Modal */}
+      {showGroupModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2">
+          <div className="card w-full max-w-md animate-fade-in">
+            <h2 className="text-xl font-semibold text-dark-50 mb-6">Yeni Stok Grubu</h2>
+            
+            <form onSubmit={handleCreateGroup} className="space-y-4">
+              <div>
+                <label className="label">Grup Kodu *</label>
+                <input
+                  type="text"
+                  value={groupForm.code}
+                  onChange={(e) => setGroupForm({ ...groupForm, code: e.target.value })}
+                  className="input font-mono"
+                  placeholder="Örn: ROBLOX"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="label">Grup Adı *</label>
+                <input
+                  type="text"
+                  value={groupForm.name}
+                  onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })}
+                  className="input"
+                  placeholder="Örn: Roblox Ürünleri"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="label">Açıklama</label>
+                <textarea
+                  value={groupForm.description}
+                  onChange={(e) => setGroupForm({ ...groupForm, description: e.target.value })}
+                  className="input"
+                  rows="2"
+                  placeholder="Grup hakkında bilgi..."
+                />
+              </div>
+              
+              <div className="flex gap-3 pt-4">
+                <button type="submit" className="btn-primary flex-1">
+                  Oluştur
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setShowGroupModal(false)
+                    setGroupForm({ code: '', name: '', description: '' })
+                  }}
+                  className="btn-secondary flex-1"
+                >
+                  İptal
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
