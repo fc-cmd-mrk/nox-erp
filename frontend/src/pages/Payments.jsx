@@ -28,6 +28,17 @@ const channelLabels = {
   other: 'Diğer'
 }
 
+const paymentTypeLabels = {
+  incoming: { label: 'Tahsilat', color: 'success', icon: 'down' },
+  outgoing: { label: 'Ödeme', color: 'danger', icon: 'up' },
+  intra_company_in: { label: 'Şirket İçi Gelen', color: 'info', icon: 'down' },
+  intra_company_out: { label: 'Şirket İçi Giden', color: 'warning', icon: 'up' },
+  inter_company_in: { label: 'Grup İçi Gelen', color: 'info', icon: 'down' },
+  inter_company_out: { label: 'Grup İçi Giden', color: 'warning', icon: 'up' },
+  currency_purchase: { label: 'Döviz Alımı', color: 'purple', icon: 'refresh' },
+  currency_sale: { label: 'Döviz Satımı', color: 'orange', icon: 'refresh' }
+}
+
 export default function Payments() {
   const [payments, setPayments] = useState([])
   const [contacts, setContacts] = useState([])
@@ -267,13 +278,16 @@ export default function Payments() {
     return account ? `${account.name} (${account.currency})` : '-'
   }
   
-  // Calculate filtered totals
+  // Calculate filtered totals (gelen ve giden işlem tipleri)
+  const incomingTypes = ['incoming', 'intra_company_in', 'inter_company_in', 'currency_purchase']
+  const outgoingTypes = ['outgoing', 'intra_company_out', 'inter_company_out', 'currency_sale']
+  
   const totalIncoming = payments
-    .filter(p => p.payment_type === 'incoming')
+    .filter(p => incomingTypes.includes(p.payment_type))
     .reduce((sum, p) => sum + parseFloat(p.amount), 0)
   
   const totalOutgoing = payments
-    .filter(p => p.payment_type === 'outgoing')
+    .filter(p => outgoingTypes.includes(p.payment_type))
     .reduce((sum, p) => sum + parseFloat(p.amount), 0)
   
   // Filter accounts by selected currency
@@ -481,8 +495,9 @@ export default function Payments() {
                   className="input"
                 >
                   <option value="">Tüm Tipler</option>
-                  <option value="incoming">Tahsilat</option>
-                  <option value="outgoing">Ödeme</option>
+                  {Object.entries(paymentTypeLabels).map(([key, { label }]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -590,17 +605,28 @@ export default function Payments() {
                 <tr key={payment.id}>
                   <td className="font-mono text-nox-400">{payment.payment_no}</td>
                   <td>
-                    {payment.payment_type === 'incoming' ? (
-                      <span className="badge-success flex items-center gap-1 w-fit">
-                        <HiOutlineArrowDown className="w-3 h-3" />
-                        Tahsilat
-                      </span>
-                    ) : (
-                      <span className="badge-danger flex items-center gap-1 w-fit">
-                        <HiOutlineArrowUp className="w-3 h-3" />
-                        Ödeme
-                      </span>
-                    )}
+                    {(() => {
+                      const typeInfo = paymentTypeLabels[payment.payment_type] || { label: payment.payment_type, color: 'info', icon: 'down' }
+                      const badgeClass = {
+                        success: 'badge-success',
+                        danger: 'badge-danger',
+                        info: 'badge-info',
+                        warning: 'bg-amber-900/30 text-amber-400 border border-amber-700/30',
+                        purple: 'bg-purple-900/30 text-purple-400 border border-purple-700/30',
+                        orange: 'bg-orange-900/30 text-orange-400 border border-orange-700/30'
+                      }[typeInfo.color] || 'badge-info'
+                      
+                      const Icon = typeInfo.icon === 'up' ? HiOutlineArrowUp : 
+                                   typeInfo.icon === 'refresh' ? HiOutlineSwitchHorizontal : 
+                                   HiOutlineArrowDown
+                      
+                      return (
+                        <span className={`${badgeClass} flex items-center gap-1 w-fit px-2 py-1 rounded-lg text-xs`}>
+                          <Icon className="w-3 h-3" />
+                          {typeInfo.label}
+                        </span>
+                      )
+                    })()}
                   </td>
                   <td>
                     <span className="badge-info">{channelLabels[payment.payment_channel] || payment.payment_channel}</span>
@@ -614,8 +640,8 @@ export default function Payments() {
                       { locale: tr }
                     )}
                   </td>
-                  <td className={`font-mono font-medium ${payment.payment_type === 'incoming' ? 'text-nox-400' : 'text-red-400'}`}>
-                    {payment.payment_type === 'incoming' ? '+' : '-'}
+                  <td className={`font-mono font-medium ${incomingTypes.includes(payment.payment_type) ? 'text-nox-400' : 'text-red-400'}`}>
+                    {incomingTypes.includes(payment.payment_type) ? '+' : '-'}
                     {formatCurrency(payment.amount, payment.currency)}
                   </td>
                   <td>
@@ -655,10 +681,24 @@ export default function Payments() {
                     onChange={(e) => setFormData({ ...formData, payment_type: e.target.value })}
                     className="input"
                   >
-                    <option value="incoming">Tahsilat (Gelen)</option>
-                    <option value="outgoing">Ödeme (Giden)</option>
+                    <optgroup label="Temel İşlemler">
+                      <option value="incoming">Tahsilat (Gelen)</option>
+                      <option value="outgoing">Ödeme (Giden)</option>
+                    </optgroup>
+                    <optgroup label="Şirket İçi Virman">
+                      <option value="intra_company_in">Şirket İçi Virman (Gelen)</option>
+                      <option value="intra_company_out">Şirket İçi Virman (Giden)</option>
+                    </optgroup>
+                    <optgroup label="Grup İçi Virman">
+                      <option value="inter_company_in">Grup İçi Virman (Gelen)</option>
+                      <option value="inter_company_out">Grup İçi Virman (Giden)</option>
+                    </optgroup>
+                    <optgroup label="Döviz İşlemleri">
+                      <option value="currency_purchase">Döviz Alımı</option>
+                      <option value="currency_sale">Döviz Satımı/Bozumu</option>
+                    </optgroup>
                   </select>
-                  <p className="text-xs text-dark-500 mt-1">Paranın yönü</p>
+                  <p className="text-xs text-dark-500 mt-1">Paranın yönü ve işlem türü</p>
                 </div>
                 <div>
                   <label className="label">Ödeme Kanalı *</label>

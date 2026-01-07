@@ -715,7 +715,7 @@ export default function Contacts() {
       {/* Detail Modal - Enlarged with Multi-Currency Support */}
       {showDetailModal && selectedContact && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="card w-full max-w-6xl max-h-[90vh] overflow-y-auto animate-fade-in">
+          <div className="card w-full max-w-6xl max-h-[90vh] min-h-[400px] overflow-auto animate-fade-in resize" style={{ resize: 'both' }}>
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 {getTypeIcon(selectedContact.contact_type)}

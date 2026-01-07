@@ -8,6 +8,18 @@ from app.database import Base
 import enum
 
 
+class PaymentType(enum.Enum):
+    """Payment types"""
+    INCOMING = "incoming"  # Tahsilat
+    OUTGOING = "outgoing"  # Ödeme
+    INTRA_COMPANY_IN = "intra_company_in"  # Şirket içi virman gelen
+    INTRA_COMPANY_OUT = "intra_company_out"  # Şirket içi virman giden
+    INTER_COMPANY_IN = "inter_company_in"  # Grup içi virman gelen
+    INTER_COMPANY_OUT = "inter_company_out"  # Grup içi virman giden
+    CURRENCY_PURCHASE = "currency_purchase"  # Döviz alımı
+    CURRENCY_SALE = "currency_sale"  # Döviz satımı/bozumu
+
+
 class PaymentChannel(enum.Enum):
     CASH = "cash"
     BANK_TRANSFER = "bank_transfer"
