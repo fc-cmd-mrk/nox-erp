@@ -70,7 +70,7 @@ export default function Products() {
       const response = await productsAPI.groups()
       setGroups(response.data)
     } catch (error) {
-      console.error('Stok grupları yüklenemedi', error)
+      console.error('Ürün grupları yüklenemedi', error)
     }
   }
   
@@ -124,11 +124,18 @@ export default function Products() {
   
   const handleSubmit = async (e) => {
     e.preventDefault()
+    
+    // Ürün grubu zorunlu
+    if (!formData.group_id) {
+      toast.error('Ürün grubu seçimi zorunludur')
+      return
+    }
+    
     try {
       const data = { 
         ...formData, 
         default_sale_price: parseFloat(formData.default_sale_price) || 0,
-        group_id: formData.group_id ? parseInt(formData.group_id) : null
+        group_id: parseInt(formData.group_id)
       }
       if (editingProduct) {
         await productsAPI.update(editingProduct.id, data)
@@ -175,7 +182,7 @@ export default function Products() {
     e.preventDefault()
     try {
       await productsAPI.createGroup(groupForm)
-      toast.success('Stok grubu oluşturuldu')
+      toast.success('Ürün grubu oluşturuldu')
       setShowGroupModal(false)
       setGroupForm({ code: '', name: '', description: '' })
       fetchGroups()
@@ -302,7 +309,7 @@ export default function Products() {
             onChange={(e) => setGroupFilter(e.target.value)}
             className="input max-w-xs"
           >
-            <option value="">Tüm Stok Grupları</option>
+            <option value="">Tüm Ürün Grupları</option>
             {groups.map(group => (
               <option key={group.id} value={group.id}>
                 {group.name}
@@ -322,7 +329,7 @@ export default function Products() {
           <div className="card !p-4 animate-fade-in">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
-                <label className="label">Stok Grubu</label>
+                <label className="label">Ürün Grubu</label>
                 <div className="flex gap-2">
                   <select
                     value={groupFilter}
@@ -406,7 +413,7 @@ export default function Products() {
           <table className="table">
             <thead>
               <tr>
-                <th>Stok Grubu</th>
+                <th>Ürün Grubu</th>
                 <th>Ürün Adı</th>
                 <th>Son Alış Fiyatı</th>
                 <th>Son Satış Fiyatı</th>
@@ -533,14 +540,15 @@ export default function Products() {
             
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="label">Stok Grubu</label>
+                <label className="label">Ürün Grubu *</label>
                 <div className="flex gap-2">
                   <select
                     value={formData.group_id}
                     onChange={(e) => setFormData({ ...formData, group_id: e.target.value })}
                     className="input flex-1"
+                    required
                   >
-                    <option value="">Grup Seçin</option>
+                    <option value="">Ürün Grubu Seçin</option>
                     {groups.map(group => (
                       <option key={group.id} value={group.id}>
                         {group.name}
@@ -556,7 +564,7 @@ export default function Products() {
                     <HiOutlinePlus className="w-4 h-4" />
                   </button>
                 </div>
-                <p className="text-xs text-dark-500 mt-1">Ürünün ait olduğu stok grubu</p>
+                <p className="text-xs text-dark-500 mt-1">Ürün grubu seçimi zorunludur</p>
               </div>
               
               <div>
@@ -785,7 +793,7 @@ export default function Products() {
       {showGroupModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2">
           <div className="card w-full max-w-md animate-fade-in">
-            <h2 className="text-xl font-semibold text-dark-50 mb-6">Yeni Stok Grubu</h2>
+            <h2 className="text-xl font-semibold text-dark-50 mb-6">Yeni Ürün Grubu</h2>
             
             <form onSubmit={handleCreateGroup} className="space-y-4">
               <div>

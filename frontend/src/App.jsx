@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard'
 import Companies from './pages/Companies'
 import Contacts from './pages/Contacts'
 import Products from './pages/Products'
+import ProductGroups from './pages/ProductGroups'
 import Transactions from './pages/Transactions'
 import Payments from './pages/Payments'
 import Accounts from './pages/Accounts'
@@ -66,6 +67,7 @@ function App() {
           <Route path="companies" element={<Companies />} />
           <Route path="contacts" element={<Contacts />} />
           <Route path="products" element={<Products />} />
+          <Route path="product-groups" element={<ProductGroups />} />
           <Route path="transactions" element={<Transactions />} />
           <Route path="payments" element={<Payments />} />
           <Route path="accounts" element={<Accounts />} />

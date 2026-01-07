@@ -105,7 +105,7 @@ export default function Dashboard() {
           <select
             value={selectedCompany}
             onChange={(e) => setSelectedCompany(e.target.value)}
-            className="input-field h-11 min-w-[200px]"
+            className="input h-11 min-w-[200px]"
           >
             <option value="">Tüm Şirketler</option>
             {companies.map(company => (

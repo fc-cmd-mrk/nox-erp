@@ -90,7 +90,7 @@ export const productsAPI = {
   categories: () => api.get('/products/categories'),
   statistics: (params) => api.get('/products/statistics', { params }),
   warehouses: (params) => api.get('/products/warehouses/list', { params }),
-  // Stok Grupları
+  // Ürün Grupları
   groups: () => api.get('/products/groups'),
   getGroup: (id) => api.get(`/products/groups/${id}`),
   createGroup: (data) => api.post('/products/groups', data),

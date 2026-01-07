@@ -22,7 +22,7 @@ class TransactionItemBrief(BaseModel):
         from_attributes = True
 
 
-# ============ STOK GRUBU (ProductGroup) ============
+# ============ ÜRÜN GRUBU (ProductGroup) ============
 class ProductGroupBase(BaseModel):
     code: str
     name: str
@@ -50,7 +50,7 @@ class ProductGroupSchema(ProductGroupBase):
 
 
 class ProductGroupWithProducts(ProductGroupSchema):
-    """Stok grubu ve ürünleri"""
+    """Ürün grubu ve ürünleri"""
     products: List["ProductSchema"] = []
 
 
@@ -123,7 +123,7 @@ class ProductBase(BaseModel):
 
 
 class ProductCreate(ProductBase):
-    group_id: Optional[int] = None  # Stok Grubu
+    group_id: int  # Ürün Grubu (zorunlu)
     category_id: Optional[int] = None
     default_sale_price: Decimal = Decimal("0")
     default_currency: str = "TRY"
@@ -135,7 +135,7 @@ class ProductCreate(ProductBase):
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
-    group_id: Optional[int] = None  # Stok Grubu
+    group_id: Optional[int] = None  # Ürün Grubu
     category_id: Optional[int] = None
     default_sale_price: Optional[Decimal] = None
     default_currency: Optional[str] = None

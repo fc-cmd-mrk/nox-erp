@@ -49,8 +49,8 @@ class Product(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(200), nullable=False, index=True)
     
-    # Stok Grubu (zorunlu)
-    group_id = Column(Integer, ForeignKey("product_groups.id"), nullable=True)
+    # Ürün Grubu (zorunlu)
+    group_id = Column(Integer, ForeignKey("product_groups.id"), nullable=False)
     category_id = Column(Integer, ForeignKey("product_categories.id"), nullable=True)
     
     # Pricing
