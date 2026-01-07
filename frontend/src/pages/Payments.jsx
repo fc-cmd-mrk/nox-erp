@@ -10,6 +10,7 @@ import {
   HiOutlineCreditCard,
   HiOutlineSearch,
   HiOutlineTrash,
+  HiOutlinePencil,
   HiOutlineSwitchHorizontal,
   HiOutlineRefresh,
   HiOutlineFilter,
@@ -60,6 +61,7 @@ export default function Payments() {
   
   const [showModal, setShowModal] = useState(false)
   const [showTransferModal, setShowTransferModal] = useState(false)
+  const [editingPayment, setEditingPayment] = useState(null)
   const [formData, setFormData] = useState({
     payment_type: 'incoming',
     payment_channel: 'bank_transfer',
@@ -164,8 +166,15 @@ export default function Payments() {
         contact_id: formData.contact_id ? parseInt(formData.contact_id) : null,
         account_id: formData.account_id ? parseInt(formData.account_id) : null
       }
-      await paymentsAPI.create(data)
-      toast.success('Ödeme kaydedildi')
+      
+      if (editingPayment) {
+        await paymentsAPI.update(editingPayment.id, data)
+        toast.success('Ödeme güncellendi')
+      } else {
+        await paymentsAPI.create(data)
+        toast.success('Ödeme kaydedildi')
+      }
+      
       setShowModal(false)
       resetForm()
       fetchPayments()
@@ -223,7 +232,24 @@ export default function Payments() {
     }
   }
   
+  const handleEdit = (payment) => {
+    setEditingPayment(payment)
+    setFormData({
+      payment_type: payment.payment_type,
+      payment_channel: payment.payment_channel,
+      currency: payment.currency,
+      amount: payment.amount.toString(),
+      exchange_rate: payment.exchange_rate?.toString() || '1',
+      contact_id: payment.contact_id?.toString() || '',
+      account_id: payment.account_id?.toString() || '',
+      description: payment.description || '',
+      reference_no: payment.reference_no || ''
+    })
+    setShowModal(true)
+  }
+  
   const resetForm = () => {
+    setEditingPayment(null)
     setFormData({
       payment_type: 'incoming',
       payment_channel: 'bank_transfer',
@@ -373,17 +399,17 @@ export default function Payments() {
           <h1 className="text-2xl font-bold text-dark-50">Ödemeler</h1>
           <p className="text-dark-400 mt-1">Tahsilat, ödeme ve virman takibi</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-3">
           <button 
             onClick={() => { resetTransferForm(); setShowTransferModal(true); }}
-            className="btn-secondary"
+            className="btn-secondary h-11 px-5"
           >
             <HiOutlineSwitchHorizontal className="w-5 h-5" />
             <span>Virman</span>
           </button>
           <button 
             onClick={() => { resetForm(); setShowModal(true); }}
-            className="btn-primary"
+            className="btn-primary h-11 px-5"
           >
             <HiOutlinePlus className="w-5 h-5" />
             <span>Yeni Ödeme</span>
@@ -645,12 +671,22 @@ export default function Payments() {
                     {formatCurrency(payment.amount, payment.currency)}
                   </td>
                   <td>
-                    <button 
-                      onClick={() => handleDelete(payment)}
-                      className="p-2 hover:bg-dark-800 rounded-lg text-dark-400 hover:text-red-400"
-                    >
-                      <HiOutlineTrash className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button 
+                        onClick={() => handleEdit(payment)}
+                        className="p-2 hover:bg-dark-800 rounded-lg text-dark-400 hover:text-nox-400"
+                        title="Düzenle"
+                      >
+                        <HiOutlinePencil className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(payment)}
+                        className="p-2 hover:bg-dark-800 rounded-lg text-dark-400 hover:text-red-400"
+                        title="Sil"
+                      >
+                        <HiOutlineTrash className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -666,11 +702,18 @@ export default function Payments() {
         </div>
       )}
       
-      {/* Yeni Ödeme Modal */}
+      {/* Ödeme Modal (Yeni/Düzenle) */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="card w-full max-w-xl max-h-[90vh] overflow-y-auto animate-fade-in">
-            <h2 className="text-xl font-semibold text-dark-50 mb-6">Yeni Ödeme</h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-dark-50">
+                {editingPayment ? 'Ödeme Düzenle' : 'Yeni Ödeme'}
+              </h2>
+              <button onClick={() => { setShowModal(false); resetForm(); }} className="p-2 hover:bg-dark-800 rounded-lg">
+                <HiOutlineX className="w-5 h-5" />
+              </button>
+            </div>
             
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
