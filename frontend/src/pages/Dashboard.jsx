@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
-import { reportsAPI } from '../services/api'
+import { reportsAPI, companiesAPI } from '../services/api'
 import { 
   HiOutlineCash, 
   HiOutlineShoppingCart, 
   HiOutlineTrendingUp,
   HiOutlineUsers,
   HiOutlineCube,
-  HiOutlineRefresh
+  HiOutlineRefresh,
+  HiOutlineOfficeBuilding
 } from 'react-icons/hi'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 
@@ -15,11 +16,24 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444']
 export default function Dashboard() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [companies, setCompanies] = useState([])
+  const [selectedCompany, setSelectedCompany] = useState('')
   
-  const fetchData = async () => {
+  // Fetch companies
+  const fetchCompanies = async () => {
+    try {
+      const response = await companiesAPI.list()
+      setCompanies(response.data || [])
+    } catch (error) {
+      console.error('Companies fetch error:', error)
+    }
+  }
+  
+  const fetchData = async (companyId = selectedCompany) => {
     setLoading(true)
     try {
-      const response = await reportsAPI.dashboard()
+      const params = companyId ? { company_id: companyId } : {}
+      const response = await reportsAPI.dashboard(params)
       setData(response.data)
     } catch (error) {
       console.error('Dashboard data error:', error)
@@ -28,8 +42,13 @@ export default function Dashboard() {
   }
   
   useEffect(() => {
+    fetchCompanies()
     fetchData()
   }, [])
+  
+  useEffect(() => {
+    fetchData(selectedCompany)
+  }, [selectedCompany])
   
   const formatCurrency = (value, currency = 'TRY') => {
     return new Intl.NumberFormat('tr-TR', {
@@ -71,12 +90,35 @@ export default function Dashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-dark-50">Dashboard</h1>
-          <p className="text-dark-400 mt-1">İşletmenizin genel görünümü</p>
+          <p className="text-dark-400 mt-1">
+            {selectedCompany ? (
+              <>
+                <HiOutlineOfficeBuilding className="inline-block w-4 h-4 mr-1" />
+                {companies.find(c => c.id === parseInt(selectedCompany))?.name || 'Şirket'} için özet
+              </>
+            ) : (
+              'İşletmenizin genel görünümü'
+            )}
+          </p>
         </div>
-        <button onClick={fetchData} className="btn-secondary">
-          <HiOutlineRefresh className="w-5 h-5" />
-          <span>Yenile</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <select
+            value={selectedCompany}
+            onChange={(e) => setSelectedCompany(e.target.value)}
+            className="input-field h-11 min-w-[200px]"
+          >
+            <option value="">Tüm Şirketler</option>
+            {companies.map(company => (
+              <option key={company.id} value={company.id}>
+                {company.name} ({company.code})
+              </option>
+            ))}
+          </select>
+          <button onClick={() => fetchData(selectedCompany)} className="btn-secondary h-11">
+            <HiOutlineRefresh className="w-5 h-5" />
+            <span>Yenile</span>
+          </button>
+        </div>
       </div>
       
       {/* Stats Grid */}

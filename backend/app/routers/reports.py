@@ -27,74 +27,114 @@ async def dashboard_summary(
     current_user: User = Depends(require_permission("reports", "view")),
     db: Session = Depends(get_db)
 ):
-    """Dashboard summary"""
+    """Dashboard summary with optional company filter"""
     today = datetime.now().date()
     start_of_month = today.replace(day=1)
     start_of_week = today - timedelta(days=today.weekday())
     
-    # Base query filters
-    def apply_company_filter(query, model):
-        if company_id:
-            return query.filter(model.company_id == company_id)
-        return query
-    
     # Today's sales
-    today_sales = db.query(func.sum(Transaction.total_amount)).filter(
+    today_sales_query = db.query(func.sum(Transaction.total_amount)).filter(
         Transaction.transaction_type == "sale",
         func.date(Transaction.transaction_date) == today
-    ).scalar() or 0
+    )
+    if company_id:
+        today_sales_query = today_sales_query.filter(Transaction.company_id == company_id)
+    today_sales = today_sales_query.scalar() or 0
     
     # This week's sales
-    week_sales = db.query(func.sum(Transaction.total_amount)).filter(
+    week_sales_query = db.query(func.sum(Transaction.total_amount)).filter(
         Transaction.transaction_type == "sale",
         func.date(Transaction.transaction_date) >= start_of_week
-    ).scalar() or 0
+    )
+    if company_id:
+        week_sales_query = week_sales_query.filter(Transaction.company_id == company_id)
+    week_sales = week_sales_query.scalar() or 0
     
     # This month's sales
-    month_sales = db.query(func.sum(Transaction.total_amount)).filter(
+    month_sales_query = db.query(func.sum(Transaction.total_amount)).filter(
         Transaction.transaction_type == "sale",
         func.date(Transaction.transaction_date) >= start_of_month
-    ).scalar() or 0
+    )
+    if company_id:
+        month_sales_query = month_sales_query.filter(Transaction.company_id == company_id)
+    month_sales = month_sales_query.scalar() or 0
     
     # Today's profit
-    today_profit = db.query(func.sum(TransactionItem.profit)).join(Transaction).filter(
+    today_profit_query = db.query(func.sum(TransactionItem.profit)).join(Transaction).filter(
         Transaction.transaction_type == "sale",
         func.date(Transaction.transaction_date) == today
-    ).scalar() or 0
+    )
+    if company_id:
+        today_profit_query = today_profit_query.filter(Transaction.company_id == company_id)
+    today_profit = today_profit_query.scalar() or 0
     
     # This month's profit
-    month_profit = db.query(func.sum(TransactionItem.profit)).join(Transaction).filter(
+    month_profit_query = db.query(func.sum(TransactionItem.profit)).join(Transaction).filter(
         Transaction.transaction_type == "sale",
         func.date(Transaction.transaction_date) >= start_of_month
-    ).scalar() or 0
+    )
+    if company_id:
+        month_profit_query = month_profit_query.filter(Transaction.company_id == company_id)
+    month_profit = month_profit_query.scalar() or 0
     
     # Transaction counts
-    today_count = db.query(func.count(Transaction.id)).filter(
+    today_count_query = db.query(func.count(Transaction.id)).filter(
         Transaction.transaction_type == "sale",
         func.date(Transaction.transaction_date) == today
-    ).scalar() or 0
+    )
+    if company_id:
+        today_count_query = today_count_query.filter(Transaction.company_id == company_id)
+    today_count = today_count_query.scalar() or 0
     
-    # Total contacts
-    total_customers = db.query(func.count(Contact.id)).filter(
-        Contact.contact_type.in_(["customer", "both"])
-    ).scalar() or 0
-    
-    total_suppliers = db.query(func.count(Contact.id)).filter(
-        Contact.contact_type.in_(["supplier", "both"])
-    ).scalar() or 0
+    # Total contacts (contacts linked to the company via ContactCompany)
+    if company_id:
+        from app.models.contact import ContactCompany
+        total_customers = db.query(func.count(func.distinct(Contact.id))).join(
+            ContactCompany, ContactCompany.contact_id == Contact.id
+        ).filter(
+            Contact.contact_type.in_(["customer", "both"]),
+            ContactCompany.company_id == company_id
+        ).scalar() or 0
+        
+        total_suppliers = db.query(func.count(func.distinct(Contact.id))).join(
+            ContactCompany, ContactCompany.contact_id == Contact.id
+        ).filter(
+            Contact.contact_type.in_(["supplier", "both"]),
+            ContactCompany.company_id == company_id
+        ).scalar() or 0
+    else:
+        total_customers = db.query(func.count(Contact.id)).filter(
+            Contact.contact_type.in_(["customer", "both"])
+        ).scalar() or 0
+        
+        total_suppliers = db.query(func.count(Contact.id)).filter(
+            Contact.contact_type.in_(["supplier", "both"])
+        ).scalar() or 0
     
     # Total products
     total_products = db.query(func.count(Product.id)).filter(Product.is_active == True).scalar() or 0
     
-    # Account balances
-    account_balances = db.query(
+    # Account balances (filter by company if specified)
+    account_balances_query = db.query(
         Account.currency,
         func.sum(Account.balance).label("total")
-    ).group_by(Account.currency).all()
+    )
+    if company_id:
+        account_balances_query = account_balances_query.filter(Account.company_id == company_id)
+    account_balances = account_balances_query.group_by(Account.currency).all()
     
     balances_dict = {row.currency: float(row.total) for row in account_balances}
     
+    # Get company name if filtered
+    company_name = None
+    if company_id:
+        company = db.query(Company).filter(Company.id == company_id).first()
+        if company:
+            company_name = company.name
+    
     return {
+        "company_id": company_id,
+        "company_name": company_name,
         "sales": {
             "today": float(today_sales),
             "week": float(week_sales),
