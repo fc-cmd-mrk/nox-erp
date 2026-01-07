@@ -36,6 +36,7 @@ export default function Transactions() {
     contact_id: '',
     currency: 'TRY',
     exchange_rate: 1,
+    transaction_date: new Date().toISOString().split('T')[0],
     notes: '',
     items: [{ product_id: '', warehouse_id: '', quantity: 1, unit_price: 0, cost_price: 0 }]
   })
@@ -134,6 +135,7 @@ export default function Transactions() {
         ...createForm,
         company_id: parseInt(createForm.company_id),
         contact_id: createForm.contact_id ? parseInt(createForm.contact_id) : null,
+        transaction_date: createForm.transaction_date || new Date().toISOString().split('T')[0],
         items: createForm.items.filter(i => i.product_id).map(i => ({
           product_id: parseInt(i.product_id),
           warehouse_id: i.warehouse_id ? parseInt(i.warehouse_id) : null,
@@ -160,6 +162,7 @@ export default function Transactions() {
       contact_id: '',
       currency: 'TRY',
       exchange_rate: 1,
+      transaction_date: new Date().toISOString().split('T')[0],
       notes: '',
       items: [{ product_id: '', warehouse_id: '', quantity: 1, unit_price: 0, cost_price: 0 }]
     })
@@ -267,7 +270,7 @@ export default function Transactions() {
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="input w-48"
+            className="input w-48 h-11"
           >
             <option value="">Tüm İşlemler</option>
             <option value="sale">Satışlar</option>
@@ -277,7 +280,7 @@ export default function Transactions() {
           </select>
           <button 
             onClick={() => setShowCreateModal(true)} 
-            className="btn-primary"
+            className="btn-primary h-11 px-5"
           >
             <HiOutlinePlus className="w-5 h-5" />
             Yeni İşlem
@@ -475,6 +478,22 @@ export default function Transactions() {
                 </div>
               </div>
               
+              {/* Transaction Date */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-dark-300 mb-2">
+                    İşlem Tarihi *
+                  </label>
+                  <input
+                    type="date"
+                    value={createForm.transaction_date}
+                    onChange={(e) => setCreateForm(prev => ({ ...prev, transaction_date: e.target.value }))}
+                    className="input w-full"
+                    required
+                  />
+                </div>
+              </div>
+              
               {/* Exchange Rate */}
               {createForm.currency !== 'TRY' && (
                 <div className="p-3 bg-dark-800/50 rounded-lg">
@@ -500,15 +519,34 @@ export default function Transactions() {
                   </button>
                 </div>
                 
-                <div className="space-y-3">
+                {/* Column Headers */}
+                <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-dark-800/60 rounded-t-lg border-b border-dark-700">
+                  <div className="col-span-4">
+                    <span className="text-xs font-medium text-dark-400 uppercase tracking-wider">Ürün</span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-xs font-medium text-dark-400 uppercase tracking-wider">Adet</span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-xs font-medium text-dark-400 uppercase tracking-wider">Birim Fiyat</span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-xs font-medium text-dark-400 uppercase tracking-wider">Maliyet</span>
+                  </div>
+                  <div className="col-span-1 text-right">
+                    <span className="text-xs font-medium text-dark-400 uppercase tracking-wider">Toplam</span>
+                  </div>
+                  <div className="col-span-1"></div>
+                </div>
+                
+                <div className="space-y-2 mt-2">
                   {createForm.items.map((item, index) => (
-                    <div key={index} className="grid grid-cols-12 gap-2 p-3 bg-dark-800/30 rounded-lg">
+                    <div key={index} className="grid grid-cols-12 gap-2 p-3 bg-dark-800/30 rounded-lg items-center">
                       <div className="col-span-4">
                         <select
                           value={item.product_id}
                           onChange={(e) => updateItem(index, 'product_id', e.target.value)}
                           className="input w-full text-sm"
-                          placeholder="Ürün"
                         >
                           <option value="">Ürün seçin...</option>
                           {products.map(p => (
@@ -522,8 +560,8 @@ export default function Transactions() {
                           type="number"
                           value={item.quantity}
                           onChange={(e) => updateItem(index, 'quantity', e.target.value)}
-                          className="input w-full text-sm"
-                          placeholder="Adet"
+                          className="input w-full text-sm text-center"
+                          placeholder="0"
                           min="1"
                         />
                       </div>
@@ -534,8 +572,8 @@ export default function Transactions() {
                           step="0.01"
                           value={item.unit_price}
                           onChange={(e) => updateItem(index, 'unit_price', e.target.value)}
-                          className="input w-full text-sm"
-                          placeholder="Birim Fiyat"
+                          className="input w-full text-sm text-right"
+                          placeholder="0,00"
                         />
                       </div>
                       
@@ -545,8 +583,8 @@ export default function Transactions() {
                           step="0.01"
                           value={item.cost_price}
                           onChange={(e) => updateItem(index, 'cost_price', e.target.value)}
-                          className="input w-full text-sm"
-                          placeholder="Maliyet"
+                          className="input w-full text-sm text-right"
+                          placeholder="0,00"
                         />
                       </div>
                       
