@@ -131,11 +131,18 @@ export default function Transactions() {
     }
     
     try {
+      // Format transaction_date as ISO datetime string
+      const dateStr = createForm.transaction_date || new Date().toISOString().split('T')[0]
+      const transactionDate = dateStr.includes('T') ? dateStr : `${dateStr}T00:00:00`
+      
       const data = {
-        ...createForm,
+        transaction_type: createForm.transaction_type,
         company_id: parseInt(createForm.company_id),
         contact_id: createForm.contact_id ? parseInt(createForm.contact_id) : null,
-        transaction_date: createForm.transaction_date || new Date().toISOString().split('T')[0],
+        transaction_date: transactionDate,
+        currency: createForm.currency,
+        exchange_rate: parseFloat(createForm.exchange_rate) || 1,
+        notes: createForm.notes || null,
         items: createForm.items.filter(i => i.product_id).map(i => ({
           product_id: parseInt(i.product_id),
           warehouse_id: i.warehouse_id ? parseInt(i.warehouse_id) : null,
@@ -151,7 +158,15 @@ export default function Transactions() {
       resetCreateForm()
       fetchTransactions()
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'İşlem oluşturulamadı')
+      const detail = error.response?.data?.detail
+      if (Array.isArray(detail)) {
+        // Pydantic validation error - extract message from first error
+        toast.error(detail[0]?.msg || 'Validasyon hatası')
+      } else if (typeof detail === 'string') {
+        toast.error(detail)
+      } else {
+        toast.error('İşlem oluşturulamadı')
+      }
     }
   }
   
@@ -216,7 +231,12 @@ export default function Transactions() {
       fetchTransactions()
       setSelectedTransaction(null)
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'İptal edilemedi')
+      const detail = error.response?.data?.detail
+      if (Array.isArray(detail)) {
+        toast.error(detail[0]?.msg || 'Hata oluştu')
+      } else {
+        toast.error(typeof detail === 'string' ? detail : 'İptal edilemedi')
+      }
     }
   }
   
@@ -231,7 +251,12 @@ export default function Transactions() {
       fetchTransactions()
       setSelectedTransaction(null)
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'İade oluşturulamadı')
+      const detail = error.response?.data?.detail
+      if (Array.isArray(detail)) {
+        toast.error(detail[0]?.msg || 'Hata oluştu')
+      } else {
+        toast.error(typeof detail === 'string' ? detail : 'İade oluşturulamadı')
+      }
     }
   }
   
@@ -245,7 +270,12 @@ export default function Transactions() {
       fetchTransactions()
       setSelectedTransaction(null)
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Silinemedi')
+      const detail = error.response?.data?.detail
+      if (Array.isArray(detail)) {
+        toast.error(detail[0]?.msg || 'Hata oluştu')
+      } else {
+        toast.error(typeof detail === 'string' ? detail : 'Silinemedi')
+      }
     }
   }
   
