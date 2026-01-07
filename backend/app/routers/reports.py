@@ -86,21 +86,21 @@ async def dashboard_summary(
         today_count_query = today_count_query.filter(Transaction.company_id == company_id)
     today_count = today_count_query.scalar() or 0
     
-    # Total contacts (contacts linked to the company via ContactCompany)
+    # Total contacts (contacts linked to the company via contact_companies table)
     if company_id:
-        from app.models.contact import ContactCompany
+        from app.models.contact import contact_companies
         total_customers = db.query(func.count(func.distinct(Contact.id))).join(
-            ContactCompany, ContactCompany.contact_id == Contact.id
+            contact_companies, contact_companies.c.contact_id == Contact.id
         ).filter(
             Contact.contact_type.in_(["customer", "both"]),
-            ContactCompany.company_id == company_id
+            contact_companies.c.company_id == company_id
         ).scalar() or 0
         
         total_suppliers = db.query(func.count(func.distinct(Contact.id))).join(
-            ContactCompany, ContactCompany.contact_id == Contact.id
+            contact_companies, contact_companies.c.contact_id == Contact.id
         ).filter(
             Contact.contact_type.in_(["supplier", "both"]),
-            ContactCompany.company_id == company_id
+            contact_companies.c.company_id == company_id
         ).scalar() or 0
     else:
         total_customers = db.query(func.count(Contact.id)).filter(
