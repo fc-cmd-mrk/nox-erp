@@ -532,10 +532,10 @@ export default function Products() {
         </div>
       )}
       
-      {/* Detail Modal - Enlarged */}
+      {/* Detail Modal - Full Screen Resizable */}
       {showDetailModal && selectedProduct && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="card w-full max-w-6xl max-h-[90vh] min-h-[400px] overflow-auto animate-fade-in resize" style={{ resize: 'both' }}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2">
+          <div className="card w-[95vw] h-[90vh] min-w-[600px] min-h-[400px] overflow-auto animate-fade-in resize relative" style={{ resize: 'both', maxWidth: '95vw', maxHeight: '95vh' }}>
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-lg bg-dark-800 flex items-center justify-center">

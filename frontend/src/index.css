@@ -162,3 +162,30 @@ body {
 .stagger-4 { animation-delay: 0.2s; }
 .stagger-5 { animation-delay: 0.25s; }
 
+/* Resizable modal */
+.resize {
+  resize: both;
+  overflow: auto;
+}
+
+.resize::-webkit-resizer {
+  background: linear-gradient(135deg, transparent 50%, #22c55e 50%);
+  border-radius: 0 0 8px 0;
+}
+
+/* Resize indicator */
+.resize::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 16px;
+  height: 16px;
+  background: 
+    linear-gradient(135deg, transparent 6px, #22c55e 6px, #22c55e 8px, transparent 8px),
+    linear-gradient(135deg, transparent 10px, #22c55e 10px, #22c55e 12px, transparent 12px);
+  cursor: se-resize;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
