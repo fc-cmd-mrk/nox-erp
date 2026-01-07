@@ -393,10 +393,10 @@ export default function Transactions() {
         </div>
       )}
       
-      {/* Create Modal */}
+      {/* Create Modal - Full Screen Resizable */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="card w-full max-w-4xl max-h-[90vh] overflow-y-auto animate-fade-in">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2">
+          <div className="card w-[90vw] h-[85vh] min-w-[600px] min-h-[400px] overflow-auto animate-fade-in resize relative" style={{ resize: 'both', maxWidth: '95vw', maxHeight: '95vh' }}>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-semibold text-dark-50">Yeni İşlem</h2>
               <button onClick={() => setShowCreateModal(false)} className="p-2 hover:bg-dark-800 rounded-lg">
@@ -649,10 +649,10 @@ export default function Transactions() {
         </div>
       )}
       
-      {/* Detail Modal */}
+      {/* Detail Modal - Full Screen Resizable */}
       {selectedTransaction && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="card w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-fade-in">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2">
+          <div className="card w-[85vw] h-[85vh] min-w-[500px] min-h-[400px] overflow-auto animate-fade-in resize relative" style={{ resize: 'both', maxWidth: '95vw', maxHeight: '95vh' }}>
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-xl font-semibold text-dark-50">İşlem Detayı</h2>

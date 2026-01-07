@@ -441,8 +441,8 @@ export default function Products() {
       
       {/* Add/Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="card w-full max-w-lg animate-fade-in">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2">
+          <div className="card w-[80vw] h-auto max-h-[90vh] min-w-[500px] overflow-auto animate-fade-in resize relative" style={{ resize: 'both', maxWidth: '95vw' }}>
             <h2 className="text-xl font-semibold text-dark-50 mb-6">
               {editingProduct ? 'Ürün Düzenle' : 'Yeni Ürün'}
             </h2>

@@ -427,8 +427,8 @@ export default function Companies() {
       
       {/* Company Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="card w-full max-w-md animate-fade-in">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2">
+          <div className="card w-[80vw] h-auto max-h-[90vh] min-w-[400px] overflow-auto animate-fade-in resize relative" style={{ resize: 'both', maxWidth: '95vw' }}>
             <h2 className="text-xl font-semibold text-dark-50 mb-6">
               {editingCompany ? 'Şirket Düzenle' : 'Yeni Şirket'}
             </h2>
@@ -516,8 +516,8 @@ export default function Companies() {
       
       {/* Warehouse Modal */}
       {showWarehouseModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="card w-full max-w-md animate-fade-in">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2">
+          <div className="card w-[80vw] h-auto max-h-[90vh] min-w-[400px] overflow-auto animate-fade-in resize relative" style={{ resize: 'both', maxWidth: '95vw' }}>
             <h2 className="text-xl font-semibold text-dark-50 mb-6">
               {editingWarehouse ? 'Depo Düzenle' : 'Yeni Depo'}
             </h2>
@@ -591,8 +591,8 @@ export default function Companies() {
       
       {/* Sub-warehouse Modal */}
       {showSubWarehouseModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="card w-full max-w-md animate-fade-in">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2">
+          <div className="card w-[80vw] h-auto max-h-[90vh] min-w-[400px] overflow-auto animate-fade-in resize relative" style={{ resize: 'both', maxWidth: '95vw' }}>
             <h2 className="text-xl font-semibold text-dark-50 mb-6">Yeni Alt Depo</h2>
             
             <form onSubmit={handleSubWarehouseSubmit} className="space-y-4">

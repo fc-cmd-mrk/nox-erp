@@ -704,8 +704,8 @@ export default function Payments() {
       
       {/* Ödeme Modal (Yeni/Düzenle) */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="card w-full max-w-xl max-h-[90vh] overflow-y-auto animate-fade-in">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2">
+          <div className="card w-[85vw] h-[85vh] min-w-[500px] min-h-[400px] overflow-auto animate-fade-in resize relative" style={{ resize: 'both', maxWidth: '95vw', maxHeight: '95vh' }}>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-semibold text-dark-50">
                 {editingPayment ? 'Ödeme Düzenle' : 'Yeni Ödeme'}
@@ -884,8 +884,8 @@ export default function Payments() {
       
       {/* Virman (Transfer) Modal */}
       {showTransferModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="card w-full max-w-xl max-h-[90vh] overflow-y-auto animate-fade-in">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2">
+          <div className="card w-[85vw] h-[85vh] min-w-[500px] min-h-[400px] overflow-auto animate-fade-in resize relative" style={{ resize: 'both', maxWidth: '95vw', maxHeight: '95vh' }}>
             <div className="flex items-center gap-3 mb-6">
               <div className="p-2 rounded-lg bg-blue-900/30">
                 <HiOutlineSwitchHorizontal className="w-5 h-5 text-blue-400" />
