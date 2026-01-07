@@ -152,9 +152,13 @@ export default function Payments() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     
-    // Cari veya hesap seçilmeli
-    if (!formData.contact_id && !formData.account_id) {
-      toast.error('Cari veya hesap seçmelisiniz')
+    // Cari ve hesap seçimi zorunlu
+    if (!formData.contact_id) {
+      toast.error('Cari seçimi zorunludur')
+      return
+    }
+    if (!formData.account_id) {
+      toast.error('Hesap seçimi zorunludur')
       return
     }
     
@@ -758,17 +762,18 @@ export default function Payments() {
                 </div>
               </div>
               
-              {/* Cari veya Hesap Seçimi */}
+              {/* Cari ve Hesap Seçimi (Her ikisi de zorunlu) */}
               <div className="p-4 bg-dark-800/30 rounded-xl border border-dark-700/50">
-                <p className="text-xs text-dark-500 mb-3">Cari veya hesap seçmelisiniz (en az biri zorunlu)</p>
+                <p className="text-xs text-amber-400 mb-3">⚠️ Cari ve hesap seçimi zorunludur</p>
                 
                 <div className="space-y-4">
                   <div>
-                    <label className="label">Cari (Müşteri/Tedarikçi)</label>
+                    <label className="label">Cari (Müşteri/Tedarikçi) *</label>
                     <select
                       value={formData.contact_id}
                       onChange={(e) => setFormData({ ...formData, contact_id: e.target.value })}
                       className="input"
+                      required
                     >
                       <option value="">Cari Seçin</option>
                       {contacts.map((contact) => (
@@ -781,11 +786,12 @@ export default function Payments() {
                   </div>
                   
                   <div>
-                    <label className="label">Hesap (Kasa/Banka/Cüzdan)</label>
+                    <label className="label">Hesap (Kasa/Banka/Cüzdan) *</label>
                     <select
                       value={formData.account_id}
                       onChange={(e) => setFormData({ ...formData, account_id: e.target.value })}
                       className="input"
+                      required
                     >
                       <option value="">Hesap Seçin</option>
                       {filteredAccounts.map((account) => (
